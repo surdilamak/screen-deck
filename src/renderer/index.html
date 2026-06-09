@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data: https://*.giphy.com; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.giphy.com https://*.giphy.com;" />
+  <title>Screen Deck</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header id="toolbar">
+    <span id="status">Screen Deck</span>
+    <div class="toolbar-actions">
+      <button id="editToggle" class="tool-btn" aria-label="Edit"></button>
+      <button id="fsBtn" class="tool-btn" aria-label="Toggle fullscreen"></button>
+      <button id="settingsBtn" class="tool-btn" aria-label="Settings"></button>
+    </div>
+  </header>
+
+  <nav id="pageStrip"></nav>
+
+  <div id="grid"></div>
+
+  <!-- Button editor modal -->
+  <div id="editorOverlay" class="overlay hidden">
+    <div class="modal">
+      <h2 id="editorTitle">Edit Button</h2>
+
+      <!-- 1) What the button does -->
+      <p class="section-label">Action</p>
+      <label>Type
+        <select id="f-type">
+          <option value="app">Open App</option>
+          <option value="url">Open URL</option>
+          <option value="path">Open File/Folder</option>
+          <option value="keys">Hotkey (keystroke)</option>
+          <option value="type">Type Text</option>
+          <option value="shell">Run Shell Command</option>
+          <option value="applescript">Run AppleScript (macOS)</option>
+          <option value="page">Open Folder (page)</option>
+        </select>
+      </label>
+
+      <button id="chooseAppBtn" class="btn-primary sm hidden choose-app"></button>
+      <button id="browsePathBtn" class="btn-ghost sm hidden choose-app"></button>
+      <label id="valueLabel">Value<input id="f-value" type="text" placeholder="e.g. Finder" /></label>
+      <label id="pageValueLabel" class="hidden">Target page
+        <select id="f-page"></select>
+      </label>
+      <p id="hint" class="hint"></p>
+
+      <!-- 2) How it looks -->
+      <p class="section-label">Appearance</p>
+
+      <div class="preview-wrap">
+        <div class="preview-box"><div id="btnPreview" class="cell"></div></div>
+        <span class="preview-hint">Live preview — updates as you change settings below.</span>
+      </div>
+
+      <label>Icon size
+        <span class="range-row">
+          <input id="f-size" type="range" min="40" max="100" step="2" value="90" />
+          <span id="sizeVal" class="val">90%</span>
+        </span>
+      </label>
+
+      <label class="checkbox"><input id="f-transparent" type="checkbox" /> Transparent background (icon only)</label>
+
+      <label>Label<input id="f-label" type="text" placeholder="Browser" /></label>
+
+      <div class="icon-row">
+        <label class="grow">Icon (emoji)<input id="f-icon" type="text" maxlength="4" placeholder="🌐" /></label>
+        <div class="img-col">
+          <span class="field-label">Image</span>
+          <div class="img-controls">
+            <div id="imgPreview" class="img-preview empty">—</div>
+            <button id="imgUploadBtn" class="btn-ghost sm"></button>
+            <button id="imgGifBtn" class="btn-ghost sm"></button>
+            <button id="imgClearBtn" class="btn-ghost sm">Clear</button>
+          </div>
+          <input id="imgFile" type="file" accept="image/*,.gif,.ico,.png,.jpg,.jpeg,.webp" hidden />
+        </div>
+      </div>
+
+      <label>Color<input id="f-color" type="color" value="#2563eb" /></label>
+
+      <div class="modal-actions">
+        <button id="clearBtn" class="btn-danger">Clear Button</button>
+        <span class="spacer"></span>
+        <button id="cancelBtn" class="btn-ghost">Cancel</button>
+        <button id="saveBtn" class="btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div id="settingsOverlay" class="overlay hidden">
+    <div class="modal">
+      <h2>Settings</h2>
+      <div class="row2">
+        <label>Columns<input id="s-cols" type="number" min="1" max="8" /></label>
+        <label>Rows<input id="s-rows" type="number" min="1" max="6" /></label>
+      </div>
+      <label>Display
+        <select id="s-display"></select>
+      </label>
+      <label>GIPHY API key <span class="hint-inline">— free at developers.giphy.com, for GIF icon search</span>
+        <input id="s-giphy" type="text" placeholder="Paste your free GIPHY API key…" />
+      </label>
+      <div class="modal-actions">
+        <button id="quitBtn" class="btn-danger">Quit App</button>
+        <span class="spacer"></span>
+        <button id="settingsCancel" class="btn-ghost">Cancel</button>
+        <button id="settingsSave" class="btn-primary">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App picker modal -->
+  <div id="appPickerOverlay" class="overlay hidden">
+    <div class="modal app-picker">
+      <h2>Choose App</h2>
+      <div class="app-search-wrap">
+        <input id="appSearch" type="text" placeholder="Search apps…" />
+      </div>
+      <div id="appList" class="app-list"></div>
+      <div class="modal-actions"><span class="spacer"></span>
+        <button id="appPickerClose" class="btn-ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GIF picker modal (GIPHY) -->
+  <div id="gifPickerOverlay" class="overlay hidden">
+    <div class="modal app-picker">
+      <h2>Search GIF</h2>
+      <div class="app-search-wrap">
+        <input id="gifSearch" type="text" placeholder="Search GIPHY…" />
+      </div>
+      <div id="gifGrid" class="gif-grid"></div>
+      <p class="gif-credit">Powered by GIPHY</p>
+      <div class="modal-actions"><span class="spacer"></span>
+        <button id="gifPickerClose" class="btn-ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
