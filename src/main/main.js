@@ -7,40 +7,63 @@ const actions = require('./actions');
 
 let win = null;
 
-// Scan common install locations for .app bundles (macOS). One level deep covers
-// vendor subfolders (e.g. /Applications/Utilities, /Applications/Adobe …).
+// Scan installed apps for the App Picker. macOS: .app bundles. Windows: Start
+// Menu .lnk shortcuts (all-users + current-user, recursive).
 function scanApps() {
-  if (process.platform !== 'darwin') return []; // Windows/Linux: type path manually for now
-  const roots = [
-    '/Applications',
-    '/System/Applications',
-    '/System/Applications/Utilities',
-    path.join(os.homedir(), 'Applications'),
-  ];
-  const found = new Map(); // name -> path
-  const add = (p) => {
-    if (!p.endsWith('.app')) return;
-    const name = path.basename(p, '.app');
-    if (!found.has(name)) found.set(name, p);
-  };
-  for (const root of roots) {
-    let entries;
-    try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
-    for (const e of entries) {
-      const full = path.join(root, e.name);
-      if (e.name.endsWith('.app')) add(full);
-      else if (e.isDirectory()) {
-        try {
-          for (const sub of fs.readdirSync(full)) {
-            if (sub.endsWith('.app')) add(path.join(full, sub));
-          }
-        } catch { /* ignore unreadable dirs */ }
-      }
-    }
-  }
-  return [...found.entries()]
+  const found = new Map(); // name -> launch path
+  const sorted = () => [...found.entries()]
     .map(([name, p]) => ({ name, path: p }))
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (process.platform === 'darwin') {
+    const roots = [
+      '/Applications', '/System/Applications', '/System/Applications/Utilities',
+      path.join(os.homedir(), 'Applications'),
+    ];
+    const add = (p) => {
+      if (!p.endsWith('.app')) return;
+      const name = path.basename(p, '.app');
+      if (!found.has(name)) found.set(name, p);
+    };
+    for (const root of roots) {
+      let entries;
+      try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
+      for (const e of entries) {
+        const full = path.join(root, e.name);
+        if (e.name.endsWith('.app')) add(full);
+        else if (e.isDirectory()) {
+          try { for (const sub of fs.readdirSync(full)) if (sub.endsWith('.app')) add(path.join(full, sub)); }
+          catch { /* ignore */ }
+        }
+      }
+    }
+    return sorted();
+  }
+
+  if (process.platform === 'win32') {
+    const roots = [
+      path.join(process.env.ProgramData || 'C:\\ProgramData', 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+      path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+    ].filter(Boolean);
+    const skip = /^(uninstall|setup|readme|help|website|home page|visit )/i;
+    const walk = (dir, depth) => {
+      if (depth > 4) return;
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const e of entries) {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) walk(full, depth + 1);
+        else if (e.name.toLowerCase().endsWith('.lnk')) {
+          const name = e.name.slice(0, -4);
+          if (!skip.test(name) && !found.has(name)) found.set(name, full);
+        }
+      }
+    };
+    roots.forEach((r) => walk(r, 0));
+    return sorted();
+  }
+
+  return []; // Linux: type the command/path manually
 }
 
 const isMac = process.platform === 'darwin';

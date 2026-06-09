@@ -60,11 +60,18 @@ function run(cmd) {
   });
 }
 
-// Launch an app. `target` can be a full path (e.g. /Applications/Foo.app from the
-// picker) or a plain name (e.g. "Finder").
-function launchApp(target) {
-  const isPath = target.startsWith('/') || target.endsWith('.app');
-  if (isMac) return run(isPath ? `open ${JSON.stringify(target)}` : `open -a ${JSON.stringify(target)}`);
+// Launch an app. `target` can be a full path (e.g. /Applications/Foo.app on macOS
+// or a Start Menu .lnk on Windows — both from the App Picker) or a plain name.
+async function launchApp(target) {
+  const isPath = target.includes('/') || target.includes('\\') || target.endsWith('.app');
+  if (isPath) {
+    // Default-handler launch: .app launches, .lnk/.exe runs, folder opens. No shell quoting.
+    const err = await shell.openPath(target);
+    if (err) throw new Error(err);
+    return;
+  }
+  // Bare name (typed manually)
+  if (isMac) return run(`open -a ${JSON.stringify(target)}`);
   if (isWin) return run(`start "" ${JSON.stringify(target)}`);
   return run(`${JSON.stringify(target)} &`); // linux fallback
 }
