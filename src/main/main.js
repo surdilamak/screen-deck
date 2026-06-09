@@ -68,30 +68,18 @@ function scanApps() {
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
-let winFs = false;          // Windows fullscreen state (we fake it borderlessly)
-let savedBounds = null;     // window bounds to restore when leaving fullscreen
+
+// Known Chromium bug: a 1px line can appear at the edge in fullscreen on Windows
+// when GPU compositing is on. Disabling HW accel removes it (perf cost is trivial
+// for this app). Must be called before app is ready.
+if (isWin) app.disableHardwareAcceleration();
 
 // macOS: simple fullscreen (stays in same Space so clicks land on a 2nd display).
-// Windows: frameless window sized to EXACTLY cover the display + always-on-top.
-// (Native fullscreen/kiosk on Windows leaves a 1px border line — this avoids it.)
+// Windows/Linux: native fullscreen (covers the display exactly, no DIP gap).
 function setDeckFullscreen(on) {
   if (!win) return false;
-  if (isMac) {
-    win.setSimpleFullScreen(on);
-  } else if (isWin) {
-    if (on) {
-      savedBounds = win.getBounds();
-      const disp = screen.getDisplayMatching(win.getBounds());
-      win.setBounds(disp.bounds);          // cover the whole display, edge to edge
-      win.setAlwaysOnTop(true, 'screen-saver');
-    } else {
-      win.setAlwaysOnTop(false);
-      if (savedBounds) win.setBounds(savedBounds);
-    }
-    winFs = on;
-  } else {
-    win.setFullScreen(on);
-  }
+  if (isMac) win.setSimpleFullScreen(on);
+  else win.setFullScreen(on);
   win.focus();
   win.webContents.send('deck:fullscreen', isDeckFullscreen());
   return on;
@@ -99,9 +87,7 @@ function setDeckFullscreen(on) {
 
 function isDeckFullscreen() {
   if (!win) return false;
-  if (isMac) return win.isSimpleFullScreen();
-  if (isWin) return winFs;
-  return win.isFullScreen();
+  return isMac ? win.isSimpleFullScreen() : win.isFullScreen();
 }
 
 // Pick which display to show the deck on.
@@ -212,37 +198,41 @@ ipcMain.handle('apps:list', () => {
   try { return scanApps(); } catch { return []; }
 });
 
-const iconViaThumb = async (p) => {
+// Returns { url, w } so callers can pick the highest-resolution icon available.
+const iconThumb = async (p) => {
   try {
-    // 256px source → stays crisp when scaled to fill a ~150px button (no pixelation).
     const t = await nativeImage.createThumbnailFromPath(p, { width: 256, height: 256 });
-    return t.isEmpty() ? '' : t.toDataURL();
-  } catch { return ''; }
+    return t.isEmpty() ? null : { url: t.toDataURL(), w: t.getSize().width };
+  } catch { return null; }
 };
-const iconViaFileIcon = async (p) => {
-  // NOTE: size 'large' crashes Electron (FATAL/SIGTRAP) on macOS — use 'normal'.
+const iconFile = async (p, size) => {
+  // NOTE: size 'large' crashes Electron (FATAL/SIGTRAP) on macOS — only use it on Windows.
   try {
-    const i = await app.getFileIcon(p, { size: 'normal' });
-    return i.isEmpty() ? '' : i.toDataURL();
-  } catch { return ''; }
+    const i = await app.getFileIcon(p, { size });
+    return i.isEmpty() ? null : { url: i.toDataURL(), w: i.getSize().width };
+  } catch { return null; }
 };
+const biggest = (...cands) => cands.filter(Boolean).sort((a, b) => b.w - a.w)[0];
 
 ipcMain.handle('apps:icon', async (_e, filePath) => {
   if (isWin) {
-    // A Start Menu entry is a .lnk — resolve it to the real target so we get the
-    // app's actual icon (the shortcut itself reports only a generic icon).
     let target = filePath;
     if (filePath.toLowerCase().endsWith('.lnk')) {
-      try {
-        const lnk = shell.readShortcutLink(filePath);
-        if (lnk && lnk.target) target = lnk.target;
-      } catch { /* keep .lnk path */ }
+      try { const lnk = shell.readShortcutLink(filePath); if (lnk && lnk.target) target = lnk.target; }
+      catch { /* keep .lnk */ }
     }
-    // Thumbnail of the target .exe gives a large, crisp icon; getFileIcon (small) as fallback.
-    return (await iconViaThumb(target)) || (await iconViaFileIcon(target)) || (await iconViaFileIcon(filePath));
+    // Pick the LARGEST of: shell thumbnail (up to 256) and the large file icon.
+    const best = biggest(
+      await iconThumb(target),
+      await iconFile(target, 'large'),
+      await iconThumb(filePath),
+      await iconFile(filePath, 'large'),
+    );
+    return best ? best.url : '';
   }
   // macOS: QuickLook thumbnail gives the REAL icon (getFileIcon is generic there).
-  return (await iconViaThumb(filePath)) || (await iconViaFileIcon(filePath));
+  const best = biggest(await iconThumb(filePath), await iconFile(filePath, 'normal'));
+  return best ? best.url : '';
 });
 
 // Native file/folder picker for the "Open File/Folder" action.

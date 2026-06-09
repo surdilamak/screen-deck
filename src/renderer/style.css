@@ -59,6 +59,11 @@ body { display: flex; flex-direction: column; }
 
 /* Display vs edit separation: fullscreen = clean deck (no toolbar). */
 body.fullscreen #toolbar { display: none; }
+/* TEMP DIAGNOSTIC: red strips on all edges in fullscreen — to identify the line. */
+body.fullscreen::after {
+  content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+  border: 3px solid #ff0000;
+}
 /* Single page & not editing → hide the page strip for a pure-grid display. */
 body.one-page #pageStrip { display: none; }
 
