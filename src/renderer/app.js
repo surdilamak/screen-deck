@@ -43,6 +43,7 @@ let editingIndex = null;
 let pendingImage; // undefined = keep, '' = cleared, string = new data URL
 let cellPx = 120; // current computed square size of a grid button
 let swiped = false; // set true when a pointer gesture was a page-swipe (suppresses tap)
+let dragMoved = false; // set true when a button was drag-repositioned (suppresses tap)
 
 const $ = (id) => document.getElementById(id);
 const grid = $('grid');
@@ -194,6 +195,7 @@ function renderGrid() {
 
     if (btn) {
       applyButtonToCell(cell, btn, cellPx);
+      setupCellDrag(cell, i);
     } else {
       cell.classList.add('empty');
       cell.innerHTML = `<div class="icon">${icon('plus', 26)}</div>`;
@@ -202,6 +204,71 @@ function renderGrid() {
     cell.addEventListener('click', () => onCellClick(i, btn));
     grid.appendChild(cell);
   }
+}
+
+// ── Drag-and-drop reposition (edit mode only) ──
+function cellIndexUnder(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const cell = el && el.closest && el.closest('#grid .cell');
+  return cell && cell.dataset.index != null ? parseInt(cell.dataset.index, 10) : null;
+}
+function setDropTarget(idx) {
+  grid.querySelectorAll('.cell.drop-target').forEach((c) => c.classList.remove('drop-target'));
+  if (idx == null) return;
+  const cell = grid.querySelector(`.cell[data-index="${idx}"]`);
+  if (cell) cell.classList.add('drop-target');
+}
+async function moveButton(fromIdx, toIdx) {
+  const from = buttonAt(fromIdx);
+  if (!from || fromIdx === toIdx) return;
+  const to = buttonAt(toIdx);
+  from.pos = toIdx;
+  if (to) to.pos = fromIdx; // swap with whatever was there
+  await persist();
+  render();
+}
+function setupCellDrag(cell, index) {
+  cell.addEventListener('pointerdown', (e) => {
+    if (!editing) return;                 // drag only in edit mode
+    const startX = e.clientX, startY = e.clientY;
+    let dragging = false, ghost = null;
+    try { cell.setPointerCapture(e.pointerId); } catch {}
+
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (!dragging && Math.hypot(dx, dy) > 8) {
+        dragging = true; dragMoved = true;
+        ghost = cell.cloneNode(true);
+        Object.assign(ghost.style, {
+          position: 'fixed', zIndex: '9999', pointerEvents: 'none', margin: '0',
+          width: cell.offsetWidth + 'px', height: cell.offsetHeight + 'px',
+          opacity: '0.9', transform: 'scale(1.06)',
+        });
+        document.body.appendChild(ghost);
+        cell.style.opacity = '0.25';
+      }
+      if (dragging) {
+        ghost.style.left = (ev.clientX - cell.offsetWidth / 2) + 'px';
+        ghost.style.top = (ev.clientY - cell.offsetHeight / 2) + 'px';
+        setDropTarget(cellIndexUnder(ev.clientX, ev.clientY));
+      }
+    };
+    const onUp = (ev) => {
+      cell.removeEventListener('pointermove', onMove);
+      cell.removeEventListener('pointerup', onUp);
+      cell.removeEventListener('pointercancel', onUp);
+      if (!dragging) return;
+      if (ghost) ghost.remove();
+      cell.style.opacity = '';
+      setDropTarget(null);
+      const target = cellIndexUnder(ev.clientX, ev.clientY);
+      if (target != null) moveButton(index, target);
+      setTimeout(() => { dragMoved = false; }, 80); // clear even if no click follows
+    };
+    cell.addEventListener('pointermove', onMove);
+    cell.addEventListener('pointerup', onUp);
+    cell.addEventListener('pointercancel', onUp);
+  });
 }
 
 // Carousel commit: slide the current page out, render the target, slide it in.
@@ -233,7 +300,8 @@ function snapBack(dx) {
 }
 
 async function onCellClick(index, btn) {
-  if (swiped) { swiped = false; return; } // ignore the tap that ends a swipe
+  if (swiped) { swiped = false; return; }       // ignore tap that ends a swipe
+  if (dragMoved) { dragMoved = false; return; } // ignore tap that ends a drag
   if (editing) return openEditor(index, btn);
   if (!btn) return openEditor(index, null);
 

@@ -207,6 +207,9 @@ body.editing .cell:not(.empty) { outline: 1px solid color-mix(in srgb, var(--acc
 }
 .badge-edit svg { width: 12px; height: 12px; }
 body.editing .cell:not(.empty) .badge-edit { display: inline-flex; }
+body.editing .cell:not(.empty) { cursor: grab; }
+body.editing .cell:not(.empty):active { cursor: grabbing; }
+.cell.drop-target { outline: 2px dashed var(--accent) !important; outline-offset: 2px; }
 
 /* ── Modals ── */
 .overlay {
