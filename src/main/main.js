@@ -222,6 +222,11 @@ function createWindow() {
     win.loadFile(path.join(__dirname, '../renderer/index.html'));
   });
 
+  // Optionally launch straight into fullscreen (kiosk) display mode.
+  if (cfg.startFullscreen) {
+    win.webContents.once('did-finish-load', () => setDeckFullscreen(true));
+  }
+
   if (process.argv.includes('--dev')) {
     win.webContents.openDevTools({ mode: 'detach' });
   }
@@ -328,6 +333,16 @@ ipcMain.handle('dialog:pickPath', async () => {
     message: 'Choose a file or folder to open',
   });
   return res.canceled || !res.filePaths.length ? '' : res.filePaths[0];
+});
+
+// Launch on system login (Windows/macOS).
+ipcMain.handle('startup:get', () => app.getLoginItemSettings().openAtLogin);
+ipcMain.handle('startup:set', (_e, enable) => {
+  const opts = { openAtLogin: !!enable };
+  // In dev (running via electron .), point the login entry at electron + app dir.
+  if (!app.isPackaged) { opts.path = process.execPath; opts.args = [path.resolve(app.getAppPath())]; }
+  app.setLoginItemSettings(opts);
+  return app.getLoginItemSettings().openAtLogin;
 });
 
 ipcMain.handle('window:minimize', () => { if (win) win.minimize(); });

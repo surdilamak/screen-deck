@@ -18,6 +18,7 @@ function defaultConfig() {
     gap: 12,
     targetDisplayId: null, // null = auto-pick / primary
     giphyKey: '', // user's free GIPHY API key (for GIF icon search)
+    startFullscreen: false, // launch straight into kiosk/fullscreen
     pages: [
       {
         id: 'home',

@@ -775,6 +775,8 @@ async function openSettings() {
     sel.appendChild(opt);
   });
   $('s-giphy').value = config.giphyKey || '';
+  $('s-startfs').checked = !!config.startFullscreen;
+  $('s-startup').checked = await deck.getStartup();
   $('settingsOverlay').classList.remove('hidden');
 }
 
@@ -782,6 +784,8 @@ async function applySettings() {
   config.grid.cols = clamp(parseInt($('s-cols').value, 10), 1, 8);
   config.grid.rows = clamp(parseInt($('s-rows').value, 10), 1, 6);
   config.giphyKey = $('s-giphy').value.trim();
+  config.startFullscreen = $('s-startfs').checked;
+  await deck.setStartup($('s-startup').checked);
   const displayId = parseInt($('s-display').value, 10);
   config.targetDisplayId = displayId;
   await persist();

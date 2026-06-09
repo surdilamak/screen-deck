@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('deck', {
   getAppIcon: (p) => ipcRenderer.invoke('apps:icon', p),
   pickPath: () => ipcRenderer.invoke('dialog:pickPath'),
   getStats: () => ipcRenderer.invoke('sys:stats'),
+  getStartup: () => ipcRenderer.invoke('startup:get'),
+  setStartup: (on) => ipcRenderer.invoke('startup:set', on),
   onFullscreen: (cb) => ipcRenderer.on('deck:fullscreen', (_e, on) => cb(!!on)),
   moveToDisplay: (id) => ipcRenderer.invoke('window:moveToDisplay', id),
   setFullscreen: (on) => ipcRenderer.invoke('window:setFullscreen', on),
