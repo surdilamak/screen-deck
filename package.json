@@ -3,17 +3,44 @@
   "version": "0.1.0",
   "description": "A customizable touchscreen macro pad (Stream Deck style) for a portable touch monitor",
   "main": "src/main/main.js",
+  "author": "surdilamak",
+  "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev"
+    "dev": "electron . --dev",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win"
   },
-  "author": "",
-  "license": "MIT",
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^26.15.2"
   },
   "dependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",
     "systeminformation": "^5.31.7"
+  },
+  "build": {
+    "appId": "com.surdilamak.screendeck",
+    "productName": "Screen Deck",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/*.node",
+      "node_modules/@nut-tree-fork/**"
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Screen Deck"
+    }
   }
 }
