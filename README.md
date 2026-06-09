@@ -52,6 +52,16 @@ background** option, with a live preview in the editor.
 **GIF search** needs a free GIPHY API key (developers.giphy.com) pasted into
 **⚙️ Settings → GIPHY API key**.
 
+## Monitor page (PC stats)
+A page can be a **monitor** instead of a button grid — a live system dashboard
+(clock, CPU load/clock/temp, GPU load/clock/temp, RAM, network up/down, disk %),
+styled like NZXT CAM / AIDA64. In edit mode, the page strip has a **＋ (deck page)**
+and a **CPU icon (＋ monitor page)**. Swipe between pages as usual.
+
+Metrics use `systeminformation`. On Windows, GPU temp/load come from `nvidia-smi`
+(NVIDIA). CPU temperature and fan RPM are often unavailable without a sensor
+backend (LibreHardwareMonitor / admin) and show as "—".
+
 ## Config
 Saved at `userData/screen-deck-config.json` (v2 schema: `pages → buttons`).
 Old flat-button configs are migrated automatically.

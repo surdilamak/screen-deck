@@ -31,6 +31,11 @@ const ICON_PATHS = {
   x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+  cpu: '<rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/>',
+  gpu: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 11v2"/><path d="M9 11v2"/><circle cx="16" cy="12" r="2.5"/>',
+  memory: '<path d="M6 19v-3"/><path d="M10 19v-3"/><path d="M14 19v-3"/><path d="M18 19v-3"/><path d="M9 11V9"/><path d="M15 11V9"/><path d="M2 15h20"/><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8H3Z"/>',
+  wifi: '<path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.86a10 10 0 0 1 14 0"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/>',
+  drive: '<line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/>',
 };
 function icon(name, size = 16) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ''}</svg>`;
@@ -47,6 +52,7 @@ let dragMoved = false; // set true when a button was drag-repositioned (suppress
 
 const $ = (id) => document.getElementById(id);
 const grid = $('grid');
+const content = $('content');
 
 const uid = (p) => p + Math.random().toString(36).slice(2, 9);
 const page = () => config.pages[pageIndex];
@@ -105,9 +111,13 @@ function renderPageStrip() {
   });
   if (editing) {
     const add = document.createElement('button');
-    add.className = 'page-add'; add.innerHTML = icon('plus', 15); add.title = 'Add page';
+    add.className = 'page-add'; add.innerHTML = icon('plus', 15); add.title = 'Add deck page';
     add.onclick = addPage;
     strip.appendChild(add);
+    const addMon = document.createElement('button');
+    addMon.className = 'page-add'; addMon.innerHTML = icon('cpu', 15); addMon.title = 'Add monitor page (PC stats)';
+    addMon.onclick = addMonitorPage;
+    strip.appendChild(addMon);
   }
   // Pure-grid display when there's a single page and we're not editing.
   document.body.classList.toggle('one-page', config.pages.length <= 1 && !editing);
@@ -117,6 +127,15 @@ async function addPage() {
   const name = await promptText('New page', 'Page ' + (config.pages.length + 1));
   if (!name) return;
   config.pages.push({ id: uid('p'), name, buttons: [] });
+  pageIndex = config.pages.length - 1;
+  await persist();
+  render();
+}
+
+async function addMonitorPage() {
+  const name = await promptText('New monitor page', 'Monitor');
+  if (!name) return;
+  config.pages.push({ id: uid('p'), name, type: 'monitor', buttons: [] });
   pageIndex = config.pages.length - 1;
   await persist();
   render();
@@ -277,16 +296,16 @@ let animating = false;
 async function commitSwipe(startDx, dir) {
   if (animating) return;
   animating = true;
-  const w = grid.offsetWidth || 320;
+  const w = content.offsetWidth || 320;
   const ease = 'cubic-bezier(0.2,0,0,1)';
-  await grid.animate(
+  await content.animate(
     [{ transform: `translateX(${startDx}px)` }, { transform: `translateX(${-dir * w}px)`, opacity: 0.25 }],
     { duration: 150, easing: ease },
   ).finished;
-  grid.style.transform = '';
+  content.style.transform = '';
   pageIndex += dir;
   render();
-  await grid.animate(
+  await content.animate(
     [{ transform: `translateX(${dir * w}px)`, opacity: 0.25 }, { transform: 'translateX(0)', opacity: 1 }],
     { duration: 220, easing: ease },
   ).finished;
@@ -294,9 +313,9 @@ async function commitSwipe(startDx, dir) {
 }
 
 function snapBack(dx) {
-  grid.animate([{ transform: `translateX(${dx}px)` }, { transform: 'translateX(0)' }],
+  content.animate([{ transform: `translateX(${dx}px)` }, { transform: 'translateX(0)' }],
     { duration: 180, easing: 'cubic-bezier(0.2,0,0,1)' });
-  grid.style.transform = '';
+  content.style.transform = '';
 }
 
 async function onCellClick(index, btn) {
@@ -325,7 +344,107 @@ function setStatus(text, state) {
   if (state) s.classList.add(state);
 }
 
-function render() { renderPageStrip(); renderGrid(); }
+function render() {
+  renderPageStrip();
+  const isMon = page().type === 'monitor';
+  $('grid').classList.toggle('hidden', isMon);
+  $('monitor').classList.toggle('hidden', !isMon);
+  if (isMon) { renderMonitor(); startMonitor(); }
+  else { stopMonitor(); renderGrid(); }
+}
+
+// ── Monitor dashboard ──
+let monClockTimer = null, monStatsTimer = null;
+const monMetric = (k, id, withBar) =>
+  `<div class="mon-metric"><div class="ml"><span class="k">${k}</span><span class="v" id="${id}">—</span></div>${withBar ? `<div class="mon-bar"><i id="${id}-bar" style="width:0%"></i></div>` : ''}</div>`;
+
+function renderMonitor() {
+  $('monitor').innerHTML = `
+    <div class="mon-clock" id="mon-clock">--:--</div>
+    <div class="mon-grid">
+      <div class="mon-card">
+        <div class="mon-head">${icon('cpu', 22)}<span class="mon-title" id="mon-cpu-name">CPU</span></div>
+        <div class="mon-metrics">
+          ${monMetric('Load', 'mon-cpu-load', true)}
+          ${monMetric('Temperature', 'mon-cpu-temp')}
+          ${monMetric('Clock', 'mon-cpu-clock')}
+        </div>
+      </div>
+      <div class="mon-card">
+        <div class="mon-head">${icon('gpu', 22)}<span class="mon-title" id="mon-gpu-name">GPU</span></div>
+        <div class="mon-metrics">
+          ${monMetric('Load', 'mon-gpu-load', true)}
+          ${monMetric('Temperature', 'mon-gpu-temp')}
+          ${monMetric('Clock', 'mon-gpu-clock')}
+        </div>
+      </div>
+    </div>
+    <div class="mon-row3">
+      <div class="mon-card">
+        <div class="mon-head">${icon('memory', 22)}<span class="mon-title">RAM</span></div>
+        <div class="mon-metrics">
+          ${monMetric('Load', 'mon-ram-load', true)}
+          ${monMetric('Used', 'mon-ram-used')}
+          ${monMetric('Free', 'mon-ram-free')}
+        </div>
+      </div>
+      <div class="mon-card">
+        <div class="mon-head">${icon('wifi', 22)}<span class="mon-title">Network</span></div>
+        <div class="mon-net">
+          <div><span class="v" id="mon-net-down">—</span><div class="k">Down</div></div>
+          <div><span class="v" id="mon-net-up">—</span><div class="k">Up</div></div>
+        </div>
+      </div>
+      <div class="mon-card">
+        <div class="mon-head">${icon('drive', 22)}<span class="mon-title">Storage</span></div>
+        <div class="mon-metrics">
+          ${monMetric('Disk', 'mon-disk', true)}
+        </div>
+      </div>
+    </div>`;
+  updateClock();
+  fetchStats();
+}
+
+function startMonitor() {
+  if (!monClockTimer) monClockTimer = setInterval(updateClock, 1000);
+  if (!monStatsTimer) monStatsTimer = setInterval(fetchStats, 2000);
+}
+function stopMonitor() {
+  clearInterval(monClockTimer); clearInterval(monStatsTimer);
+  monClockTimer = monStatsTimer = null;
+}
+
+function updateClock() {
+  const el = $('mon-clock'); if (!el) return;
+  el.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+const _pct = (v) => (v == null ? '—' : Math.round(v) + '%');
+const _deg = (v) => (v == null ? '—' : Math.round(v) + '°C');
+const _mhz = (v) => (v == null ? '—' : Math.round(v) + ' MHz');
+const _kbs = (v) => (v == null ? '—' : (v >= 1024 ? (v / 1024).toFixed(1) + ' MB/s' : v.toFixed(1) + ' KB/s'));
+function setTxt(id, t) { const e = $(id); if (e) e.textContent = t; }
+function setBar(id, v) { const e = $(id); if (e) e.style.width = (v == null ? 0 : Math.max(0, Math.min(100, v))) + '%'; }
+
+async function fetchStats() {
+  let s; try { s = await deck.getStats(); } catch { return; }
+  if (page().type !== 'monitor') return; // page changed mid-fetch
+  setTxt('mon-cpu-name', s.cpu.name || 'CPU');
+  setTxt('mon-cpu-load', _pct(s.cpu.load)); setBar('mon-cpu-load-bar', s.cpu.load);
+  setTxt('mon-cpu-temp', _deg(s.cpu.tempC));
+  setTxt('mon-cpu-clock', _mhz(s.cpu.clockMHz));
+  setTxt('mon-gpu-name', s.gpu.name || 'GPU');
+  setTxt('mon-gpu-load', _pct(s.gpu.load)); setBar('mon-gpu-load-bar', s.gpu.load);
+  setTxt('mon-gpu-temp', _deg(s.gpu.tempC));
+  setTxt('mon-gpu-clock', _mhz(s.gpu.clockMHz));
+  setTxt('mon-ram-load', _pct(s.mem.pct)); setBar('mon-ram-load-bar', s.mem.pct);
+  setTxt('mon-ram-used', s.mem.usedMB + ' MB');
+  setTxt('mon-ram-free', s.mem.freeMB + ' MB');
+  setTxt('mon-net-down', _kbs(s.net.downKBs));
+  setTxt('mon-net-up', _kbs(s.net.upKBs));
+  setTxt('mon-disk', (s.disk.mount ? s.disk.mount + '  ' : '') + _pct(s.disk.pct)); setBar('mon-disk-bar', s.disk.pct);
+}
 
 // ── Button editor ──
 const HINTS = {
@@ -691,14 +810,14 @@ function bind() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') deck.setFullscreen(false); });
   window.addEventListener('resize', () => { if (config) sizeGrid(); });
 
-  // Follow-finger carousel: drag the grid horizontally, snap/commit on release.
+  // Follow-finger carousel: drag the content horizontally, snap/commit on release.
   let sx = 0, sy = 0, dragging = false, hMove = false;
-  grid.addEventListener('pointerdown', (e) => {
+  content.addEventListener('pointerdown', (e) => {
     if (animating || editing) return;     // don't carousel while editing
     sx = e.clientX; sy = e.clientY; dragging = true; hMove = false; swiped = false;
-    try { grid.setPointerCapture(e.pointerId); } catch {}
+    try { content.setPointerCapture(e.pointerId); } catch {}
   });
-  grid.addEventListener('pointermove', (e) => {
+  content.addEventListener('pointermove', (e) => {
     if (!dragging) return;
     let dx = e.clientX - sx;
     const dy = e.clientY - sy;
@@ -708,20 +827,20 @@ function bind() {
     const n = config.pages.length;
     const atEdge = (dx > 0 && pageIndex === 0) || (dx < 0 && pageIndex === n - 1);
     if (atEdge) dx *= 0.32;                // rubber-band resistance at ends
-    grid.style.transform = `translateX(${dx}px)`;
+    content.style.transform = `translateX(${dx}px)`;
   });
   const endDrag = (e) => {
     if (!dragging) return;
     dragging = false;
     const dx = e.clientX - sx;
     const n = config.pages.length;
-    const threshold = Math.max(60, (grid.offsetWidth || 320) * 0.16);
+    const threshold = Math.max(60, (content.offsetWidth || 320) * 0.16);
     if (dx <= -threshold && pageIndex < n - 1) commitSwipe(dx, 1);
     else if (dx >= threshold && pageIndex > 0) commitSwipe(dx, -1);
     else if (hMove) snapBack(dx);
   };
-  grid.addEventListener('pointerup', endDrag);
-  grid.addEventListener('pointercancel', endDrag);
+  content.addEventListener('pointerup', endDrag);
+  content.addEventListener('pointercancel', endDrag);
 
   $('f-type').addEventListener('change', syncTypeUI);
   $('f-label').addEventListener('input', updatePreview);

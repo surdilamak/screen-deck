@@ -2,8 +2,12 @@ const { app, BrowserWindow, ipcMain, screen, nativeImage, dialog, shell } = requ
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const si = require('systeminformation');
 const config = require('./config');
 const actions = require('./actions');
+
+let cpuName = '';
+si.cpu().then((c) => { cpuName = `${c.manufacturer || ''} ${c.brand || ''}`.trim(); }).catch(() => {});
 
 let win = null;
 
@@ -328,6 +332,50 @@ ipcMain.handle('dialog:pickPath', async () => {
 
 ipcMain.handle('window:minimize', () => { if (win) win.minimize(); });
 ipcMain.handle('window:close', () => { if (win) win.close(); });
+
+// System monitoring snapshot for the monitor page.
+ipcMain.handle('sys:stats', async () => {
+  const [load, speed, temp, mem, net, disks, gfx] = await Promise.all([
+    si.currentLoad().catch(() => ({})),
+    si.cpuCurrentSpeed().catch(() => ({})),
+    si.cpuTemperature().catch(() => ({})),
+    si.mem().catch(() => ({})),
+    si.networkStats().catch(() => []),
+    si.fsSize().catch(() => []),
+    si.graphics().catch(() => ({ controllers: [] })),
+  ]);
+  const ctrls = (gfx && gfx.controllers) || [];
+  const gpu = ctrls.find((c) => c.temperatureGpu != null || c.utilizationGpu != null)
+    || ctrls.find((c) => /nvidia|geforce|rtx|gtx|radeon|amd/i.test(c.model || '')) || ctrls[0] || {};
+  const n0 = (net && net[0]) || {};
+  const disk = (disks || []).filter((d) => d.size > 0).sort((a, b) => b.size - a.size)[0] || {};
+  const usedMem = mem.active || mem.used || 0;
+  return {
+    cpu: {
+      name: cpuName,
+      load: load.currentLoad ?? null,
+      tempC: temp.main ?? null,
+      clockMHz: speed.avg ? Math.round(speed.avg * 1000) : null,
+    },
+    gpu: {
+      name: gpu.model || null,
+      load: gpu.utilizationGpu ?? null,
+      tempC: gpu.temperatureGpu ?? null,
+      fan: gpu.fanSpeed ?? null,
+      clockMHz: gpu.clockCore ?? null,
+    },
+    mem: {
+      usedMB: Math.round(usedMem / 1048576),
+      freeMB: Math.round((mem.available ?? mem.free ?? 0) / 1048576),
+      pct: mem.total ? Math.round((usedMem / mem.total) * 100) : null,
+    },
+    net: {
+      upKBs: n0.tx_sec != null ? n0.tx_sec / 1024 : null,
+      downKBs: n0.rx_sec != null ? n0.rx_sec / 1024 : null,
+    },
+    disk: { mount: disk.mount || disk.fs || '', pct: disk.use != null ? Math.round(disk.use) : null },
+  };
+});
 
 ipcMain.handle('app:quit', () => app.quit());
 

@@ -152,14 +152,17 @@ button { font-family: inherit; }
 .page-add svg { width: 15px; height: 15px; }
 
 /* ── Deck grid (DARK — Stream Deck) ── */
-#grid {
-  flex: 1 1 auto; min-height: 0;
-  display: grid; gap: var(--s3); padding: var(--s4);
-  width: 100%;
-  justify-content: center; align-content: center;
-  touch-action: none;   /* we handle horizontal swipe (carousel) ourselves */
+#content {
+  flex: 1 1 auto; min-height: 0; display: flex; position: relative;
+  touch-action: none;          /* we handle horizontal swipe (carousel) */
   will-change: transform;
 }
+#grid {
+  flex: 1 1 auto; min-height: 0; min-width: 0;
+  display: grid; gap: var(--s3); padding: var(--s4);
+  justify-content: center; align-content: center;
+}
+#monitor { flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto; padding: var(--s4); }
 .cell {
   aspect-ratio: 1 / 1;
   border-radius: var(--r-card);
@@ -210,6 +213,30 @@ body.editing .cell:not(.empty) .badge-edit { display: inline-flex; }
 body.editing .cell:not(.empty) { cursor: grab; }
 body.editing .cell:not(.empty):active { cursor: grabbing; }
 .cell.drop-target { outline: 2px dashed var(--accent) !important; outline-offset: 2px; }
+
+/* ── Monitor dashboard ── */
+.mon-clock { text-align: center; font-size: 40px; font-weight: 600; letter-spacing: 1px; margin-bottom: var(--s3); font-variant-numeric: tabular-nums; }
+.mon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+.mon-card {
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--hairline); border-radius: var(--r-card);
+  padding: var(--s4);
+}
+.mon-card.wide { grid-column: span 1; }
+.mon-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--s3); margin-top: var(--s3); }
+.mon-head { display: flex; align-items: center; gap: 10px; margin-bottom: var(--s3); }
+.mon-head svg { width: 22px; height: 22px; color: var(--ink-soft); }
+.mon-title { font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mon-metrics { display: flex; flex-direction: column; gap: 10px; }
+.mon-metric { display: flex; flex-direction: column; gap: 5px; }
+.mon-metric .ml { display: flex; justify-content: space-between; align-items: baseline; }
+.mon-metric .k { font-size: 13px; color: var(--ink-soft); }
+.mon-metric .v { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mon-bar { height: 7px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
+.mon-bar > i { display: block; height: 100%; border-radius: var(--r-pill); background: linear-gradient(90deg, #6b7280, var(--ink-soft)); transition: width var(--t) var(--ease); }
+.mon-net { display: flex; gap: var(--s5); font-variant-numeric: tabular-nums; }
+.mon-net div { font-size: 14px; }
+.mon-net .k { font-size: 11px; color: var(--ink-faint); }
 
 /* ── Modals ── */
 .overlay {
