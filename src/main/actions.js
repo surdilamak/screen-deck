@@ -63,6 +63,8 @@ function run(cmd) {
 // Launch an app. `target` can be a full path (e.g. /Applications/Foo.app on macOS
 // or a Start Menu .lnk on Windows — both from the App Picker) or a plain name.
 async function launchApp(target) {
+  // Protocol URL (e.g. steam://rungameid/440, com.app://…) → open via the OS handler.
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(target)) return shell.openExternal(target);
   const isPath = target.includes('/') || target.includes('\\') || target.endsWith('.app');
   if (isPath) {
     // Default-handler launch: .app launches, .lnk/.exe runs, folder opens. No shell quoting.

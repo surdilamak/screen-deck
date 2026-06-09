@@ -7,8 +7,61 @@ const actions = require('./actions');
 
 let win = null;
 
+// Discover installed Steam games (Windows): parse libraryfolders.vdf + each
+// appmanifest_*.acf. Returns { name, path: steam://rungameid/<id>, iconPath }.
+function scanSteamGames() {
+  const out = [];
+  try {
+    let root = '';
+    try {
+      const o = require('child_process')
+        .execSync('reg query "HKCU\\Software\\Valve\\Steam" /v SteamPath', { encoding: 'utf8' });
+      const m = o.match(/SteamPath\s+REG_SZ\s+(.+)/i);
+      if (m) root = m[1].trim();
+    } catch { /* registry miss */ }
+    if (!root) {
+      for (const c of ['C:\\Program Files (x86)\\Steam', 'C:\\Program Files\\Steam']) {
+        if (fs.existsSync(c)) { root = c; break; }
+      }
+    }
+    if (!root) return out;
+    root = root.replace(/\//g, '\\');
+
+    const libs = new Set([root]);
+    try {
+      const vdf = fs.readFileSync(path.join(root, 'steamapps', 'libraryfolders.vdf'), 'utf8');
+      const re = /"path"\s*"([^"]+)"/g; let m;
+      while ((m = re.exec(vdf))) libs.add(m[1].replace(/\\\\/g, '\\'));
+    } catch { /* single library */ }
+
+    const iconDir = path.join(root, 'appcache', 'librarycache');
+    const seen = new Set();
+    for (const lib of libs) {
+      const sa = path.join(lib, 'steamapps');
+      let files;
+      try { files = fs.readdirSync(sa).filter((f) => /^appmanifest_\d+\.acf$/i.test(f)); } catch { continue; }
+      for (const f of files) {
+        try {
+          const t = fs.readFileSync(path.join(sa, f), 'utf8');
+          const appid = (t.match(/"appid"\s*"(\d+)"/i) || [])[1];
+          const name = (t.match(/"name"\s*"([^"]+)"/i) || [])[1];
+          if (!appid || !name || seen.has(appid)) continue;
+          seen.add(appid);
+          let iconPath;
+          for (const cand of [`${appid}_icon.jpg`, `${appid}_icon.ico`, `${appid}_library_600x900.jpg`]) {
+            const ip = path.join(iconDir, cand);
+            if (fs.existsSync(ip)) { iconPath = ip; break; }
+          }
+          out.push({ name, path: `steam://rungameid/${appid}`, iconPath });
+        } catch { /* skip bad manifest */ }
+      }
+    }
+  } catch { /* no steam */ }
+  return out;
+}
+
 // Scan installed apps for the App Picker. macOS: .app bundles. Windows: Start
-// Menu .lnk shortcuts (all-users + current-user, recursive).
+// Menu .lnk/.url shortcuts + Steam games.
 function scanApps() {
   const found = new Map(); // name -> launch path
   const sorted = () => [...found.entries()]
@@ -53,14 +106,23 @@ function scanApps() {
       for (const e of entries) {
         const full = path.join(dir, e.name);
         if (e.isDirectory()) walk(full, depth + 1);
-        else if (e.name.toLowerCase().endsWith('.lnk')) {
-          const name = e.name.slice(0, -4);
-          if (!skip.test(name) && !found.has(name)) found.set(name, full);
+        else {
+          const lower = e.name.toLowerCase();
+          if (lower.endsWith('.lnk') || lower.endsWith('.url')) {
+            const name = e.name.slice(0, -4);
+            if (!skip.test(name) && !found.has(name)) found.set(name, full);
+          }
         }
       }
     };
     roots.forEach((r) => walk(r, 0));
-    return sorted();
+
+    // Merge in Steam games (with their icons), de-duped by name.
+    const entries = sorted();
+    const names = new Set(entries.map((e) => e.name));
+    for (const g of scanSteamGames()) if (!names.has(g.name)) { entries.push(g); names.add(g.name); }
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    return entries;
   }
 
   return []; // Linux: type the command/path manually

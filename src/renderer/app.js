@@ -466,7 +466,7 @@ function renderAppList(filter) {
     row.append(slot, name);
     row.onclick = () => selectApp(a);
     list.appendChild(row);
-    queueIcon(a.path, (data) => {
+    queueIcon(a.iconPath || a.path, (data) => {
       if (!data || !row.isConnected) return;
       const ph = row.querySelector('.ph');
       if (ph) ph.replaceWith(makeIconImg(data));
@@ -478,8 +478,9 @@ async function selectApp(a) {
   $('f-value').value = a.path;
   $('appPickerOverlay').classList.add('hidden');
   // Auto-set the button icon from the app's icon (user can still override).
-  const ic = iconCache.get(a.path) || (await deck.getAppIcon(a.path));
-  if (ic) { iconCache.set(a.path, ic); pendingImage = ic; setImagePreview(ic); $('f-icon').value = ''; }
+  const iconSrc = a.iconPath || a.path;
+  const ic = iconCache.get(iconSrc) || (await deck.getAppIcon(iconSrc));
+  if (ic) { iconCache.set(iconSrc, ic); pendingImage = ic; setImagePreview(ic); $('f-icon').value = ''; }
   updatePreview();
 }
 
