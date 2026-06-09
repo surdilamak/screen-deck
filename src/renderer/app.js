@@ -889,6 +889,7 @@ function bind() {
   });
   $('chooseAppBtn').addEventListener('click', openAppPicker);
   $('browsePathBtn').addEventListener('click', openPathPicker);
+  deck.onUpdateStatus((msg) => setStatus(msg, 'ok'));
   deck.onFullscreen((on) => {
     document.body.classList.toggle('fullscreen', on);
     if (on && editing) { // leaving edit when entering display mode

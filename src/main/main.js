@@ -3,8 +3,23 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const si = require('systeminformation');
+const { autoUpdater } = require('electron-updater');
 const config = require('./config');
 const actions = require('./actions');
+
+// Auto-update from GitHub Releases (only when packaged). Downloads in the
+// background and installs on the next quit; tells the renderer for a status line.
+function initAutoUpdate() {
+  if (!app.isPackaged) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('update-available', () => win && win.webContents.send('update:status', 'Downloading update…'));
+  autoUpdater.on('update-downloaded', () => win && win.webContents.send('update:status', 'Update ready — restart to apply'));
+  autoUpdater.on('error', (e) => console.error('auto-update:', e && e.message));
+  autoUpdater.checkForUpdates().catch(() => {});
+  // Re-check every 6 hours in case the app stays open (kiosk).
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 6 * 60 * 60 * 1000);
+}
 
 let cpuName = '';
 si.cpu().then((c) => { cpuName = `${c.manufacturer || ''} ${c.brand || ''}`.trim(); }).catch(() => {});
@@ -399,6 +414,7 @@ ipcMain.handle('app:quit', () => app.quit());
 
 app.whenReady().then(() => {
   createWindow();
+  initAutoUpdate();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

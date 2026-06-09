@@ -1,6 +1,6 @@
 {
   "name": "screen-deck",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A customizable touchscreen macro pad (Stream Deck style) for a portable touch monitor",
   "main": "src/main/main.js",
   "author": "surdilamak",
@@ -9,7 +9,8 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "dist": "electron-builder",
-    "dist:win": "electron-builder --win"
+    "dist:win": "electron-builder --win",
+    "release": "electron-builder --win --publish always"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -17,12 +18,19 @@
   },
   "dependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",
+    "electron-updater": "^6.8.9",
     "systeminformation": "^5.31.7"
   },
   "build": {
     "appId": "com.surdilamak.screendeck",
     "productName": "Screen Deck",
-    "directories": { "output": "dist", "buildResources": "build" },
+    "publish": [
+      { "provider": "github", "owner": "surdilamak", "repo": "screen-deck", "releaseType": "release" }
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
     "files": [
       "src/**/*",
       "package.json"
@@ -32,7 +40,14 @@
       "node_modules/@nut-tree-fork/**"
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }]
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
