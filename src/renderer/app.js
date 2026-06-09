@@ -169,7 +169,9 @@ function applyButtonToCell(cell, btn, px) {
   const iconPx = Math.round(px * scale);
   let html = '<div class="icon">';
   if (btn.image) {
-    html += `<img src="${btn.image}" alt="" style="width:${iconPx}px;height:${iconPx}px">`;
+    const fit = btn.imageFit === 'cover' ? 'cover' : 'contain';
+    const pos = btn.imagePosition || 'center';
+    html += `<img src="${btn.image}" alt="" style="width:${iconPx}px;height:${iconPx}px;object-fit:${fit};object-position:${pos}">`;
   } else {
     html += `<span class="emoji" style="font-size:${Math.round(iconPx * 0.64)}px">${escapeHtml(btn.icon || '▢')}</span>`;
   }
@@ -202,18 +204,32 @@ function renderGrid() {
   }
 }
 
-// Carousel: change page with a slide animation. delta +1 = next, -1 = prev.
-function changePage(delta) {
-  const n = config.pages.length;
-  const next = Math.min(n - 1, Math.max(0, pageIndex + delta));
-  if (next === pageIndex) return;
-  const from = delta > 0 ? 1 : -1;
-  pageIndex = next;
+// Carousel commit: slide the current page out, render the target, slide it in.
+// dir: +1 = next page (content moves left), -1 = previous.
+let animating = false;
+async function commitSwipe(startDx, dir) {
+  if (animating) return;
+  animating = true;
+  const w = grid.offsetWidth || 320;
+  const ease = 'cubic-bezier(0.2,0,0,1)';
+  await grid.animate(
+    [{ transform: `translateX(${startDx}px)` }, { transform: `translateX(${-dir * w}px)`, opacity: 0.25 }],
+    { duration: 150, easing: ease },
+  ).finished;
+  grid.style.transform = '';
+  pageIndex += dir;
   render();
-  grid.animate(
-    [{ transform: `translateX(${from * 36}px)`, opacity: 0.3 }, { transform: 'none', opacity: 1 }],
-    { duration: 200, easing: 'cubic-bezier(0.2,0,0,1)' },
-  );
+  await grid.animate(
+    [{ transform: `translateX(${dir * w}px)`, opacity: 0.25 }, { transform: 'translateX(0)', opacity: 1 }],
+    { duration: 220, easing: ease },
+  ).finished;
+  animating = false;
+}
+
+function snapBack(dx) {
+  grid.animate([{ transform: `translateX(${dx}px)` }, { transform: 'translateX(0)' }],
+    { duration: 180, easing: 'cubic-bezier(0.2,0,0,1)' });
+  grid.style.transform = '';
 }
 
 async function onCellClick(index, btn) {
@@ -272,6 +288,9 @@ function openEditor(index, btn) {
   $('f-size').value = scale;
   $('sizeVal').textContent = scale + '%';
   $('f-transparent').checked = !!btn?.transparent;
+  $('f-fit').value = btn?.imageFit === 'cover' ? 'cover' : 'contain';
+  $('f-pos').value = btn?.imagePosition || 'center';
+  syncFitUI();
   setImagePreview(btn?.image || '');
   populatePageSelect(btn?.action?.type === 'page' ? btn?.action?.value : '');
   $('clearBtn').style.display = btn ? 'inline-block' : 'none';
@@ -291,8 +310,15 @@ function formButton() {
     color: $('f-color').value,
     iconScale: parseInt($('f-size').value, 10) / 100,
     transparent: $('f-transparent').checked,
+    imageFit: $('f-fit').value,
+    imagePosition: $('f-pos').value,
     action: { type, value: type === 'page' ? $('f-page').value : $('f-value').value.trim() },
   };
+}
+
+// Show the position selector only when fit = Fill (cover).
+function syncFitUI() {
+  $('posLabel').classList.toggle('hidden', $('f-fit').value !== 'cover');
 }
 
 function updatePreview() {
@@ -577,22 +603,45 @@ function bind() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') deck.setFullscreen(false); });
   window.addEventListener('resize', () => { if (config) sizeGrid(); });
 
-  // Swipe left/right on the grid to flip pages (carousel). Works for touch & mouse.
-  let sx = 0, sy = 0;
-  grid.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; swiped = false; });
-  grid.addEventListener('pointerup', (e) => {
-    const dx = e.clientX - sx, dy = e.clientY - sy;
-    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4) {
-      swiped = true;            // suppress the cell tap that follows
-      changePage(dx < 0 ? 1 : -1);
-    }
+  // Follow-finger carousel: drag the grid horizontally, snap/commit on release.
+  let sx = 0, sy = 0, dragging = false, hMove = false;
+  grid.addEventListener('pointerdown', (e) => {
+    if (animating || editing) return;     // don't carousel while editing
+    sx = e.clientX; sy = e.clientY; dragging = true; hMove = false; swiped = false;
+    try { grid.setPointerCapture(e.pointerId); } catch {}
   });
+  grid.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    let dx = e.clientX - sx;
+    const dy = e.clientY - sy;
+    if (!hMove && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) hMove = true;
+    if (!hMove) return;
+    swiped = true;                         // a real drag → suppress the tap
+    const n = config.pages.length;
+    const atEdge = (dx > 0 && pageIndex === 0) || (dx < 0 && pageIndex === n - 1);
+    if (atEdge) dx *= 0.32;                // rubber-band resistance at ends
+    grid.style.transform = `translateX(${dx}px)`;
+  });
+  const endDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    const dx = e.clientX - sx;
+    const n = config.pages.length;
+    const threshold = Math.max(60, (grid.offsetWidth || 320) * 0.16);
+    if (dx <= -threshold && pageIndex < n - 1) commitSwipe(dx, 1);
+    else if (dx >= threshold && pageIndex > 0) commitSwipe(dx, -1);
+    else if (hMove) snapBack(dx);
+  };
+  grid.addEventListener('pointerup', endDrag);
+  grid.addEventListener('pointercancel', endDrag);
 
   $('f-type').addEventListener('change', syncTypeUI);
   $('f-label').addEventListener('input', updatePreview);
   $('f-icon').addEventListener('input', updatePreview);
   $('f-color').addEventListener('input', updatePreview);
   $('f-transparent').addEventListener('change', updatePreview);
+  $('f-fit').addEventListener('change', () => { syncFitUI(); updatePreview(); });
+  $('f-pos').addEventListener('change', updatePreview);
   $('f-size').addEventListener('input', () => {
     $('sizeVal').textContent = $('f-size').value + '%';
     updatePreview();

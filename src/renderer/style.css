@@ -157,6 +157,8 @@ button { font-family: inherit; }
   display: grid; gap: var(--s3); padding: var(--s4);
   width: 100%;
   justify-content: center; align-content: center;
+  touch-action: none;   /* we handle horizontal swipe (carousel) ourselves */
+  will-change: transform;
 }
 .cell {
   aspect-ratio: 1 / 1;

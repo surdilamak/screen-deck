@@ -71,6 +71,24 @@
 
       <label class="checkbox"><input id="f-transparent" type="checkbox" /> Transparent background (icon only)</label>
 
+      <div class="row2">
+        <label>Image fit
+          <select id="f-fit">
+            <option value="contain">Contain (fit, no crop)</option>
+            <option value="cover">Fill (cover, may crop)</option>
+          </select>
+        </label>
+        <label id="posLabel" class="hidden">Position
+          <select id="f-pos">
+            <option value="center">Center</option>
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        </label>
+      </div>
+
       <label>Label<input id="f-label" type="text" placeholder="Browser" /></label>
 
       <div class="icon-row">

@@ -68,16 +68,31 @@ function scanApps() {
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
+let winFs = false;          // Windows fullscreen state (we fake it borderlessly)
+let savedBounds = null;     // window bounds to restore when leaving fullscreen
 
 // macOS: simple fullscreen (stays in same Space so clicks land on a 2nd display).
-// Windows: kiosk mode = true borderless fullscreen with NO frame/border line.
+// Windows: frameless window sized to EXACTLY cover the display + always-on-top.
+// (Native fullscreen/kiosk on Windows leaves a 1px border line — this avoids it.)
 function setDeckFullscreen(on) {
   if (!win) return false;
-  if (isMac) win.setSimpleFullScreen(on);
-  else if (isWin) win.setKiosk(on);
-  else win.setFullScreen(on);
+  if (isMac) {
+    win.setSimpleFullScreen(on);
+  } else if (isWin) {
+    if (on) {
+      savedBounds = win.getBounds();
+      const disp = screen.getDisplayMatching(win.getBounds());
+      win.setBounds(disp.bounds);          // cover the whole display, edge to edge
+      win.setAlwaysOnTop(true, 'screen-saver');
+    } else {
+      win.setAlwaysOnTop(false);
+      if (savedBounds) win.setBounds(savedBounds);
+    }
+    winFs = on;
+  } else {
+    win.setFullScreen(on);
+  }
   win.focus();
-  // Tell the renderer so it can switch between display (clean) and edit chrome.
   win.webContents.send('deck:fullscreen', isDeckFullscreen());
   return on;
 }
@@ -85,7 +100,7 @@ function setDeckFullscreen(on) {
 function isDeckFullscreen() {
   if (!win) return false;
   if (isMac) return win.isSimpleFullScreen();
-  if (isWin) return win.isKiosk();
+  if (isWin) return winFs;
   return win.isFullScreen();
 }
 
@@ -199,7 +214,8 @@ ipcMain.handle('apps:list', () => {
 
 const iconViaThumb = async (p) => {
   try {
-    const t = await nativeImage.createThumbnailFromPath(p, { width: 128, height: 128 });
+    // 256px source → stays crisp when scaled to fill a ~150px button (no pixelation).
+    const t = await nativeImage.createThumbnailFromPath(p, { width: 256, height: 256 });
     return t.isEmpty() ? '' : t.toDataURL();
   } catch { return ''; }
 };
@@ -222,7 +238,8 @@ ipcMain.handle('apps:icon', async (_e, filePath) => {
         if (lnk && lnk.target) target = lnk.target;
       } catch { /* keep .lnk path */ }
     }
-    return (await iconViaFileIcon(target)) || (await iconViaThumb(target)) || (await iconViaFileIcon(filePath));
+    // Thumbnail of the target .exe gives a large, crisp icon; getFileIcon (small) as fallback.
+    return (await iconViaThumb(target)) || (await iconViaFileIcon(target)) || (await iconViaFileIcon(filePath));
   }
   // macOS: QuickLook thumbnail gives the REAL icon (getFileIcon is generic there).
   return (await iconViaThumb(filePath)) || (await iconViaFileIcon(filePath));
