@@ -407,6 +407,7 @@ function syncTypeUI() {
 
 // ── App picker ──
 let appsCache = null;
+let appFilter = 'all'; // all | app | game
 const iconCache = new Map();
 
 // Limited-concurrency icon loader — fetching all 100+ icons at once can choke
@@ -441,16 +442,36 @@ function makeIconImg(src) {
 async function openAppPicker() {
   $('appPickerOverlay').classList.remove('hidden');
   $('appSearch').value = '';
+  appFilter = 'all';
   $('appList').innerHTML = '<div class="app-empty">Loading apps…</div>';
   if (!appsCache) appsCache = await deck.listApps();
+  renderFilterTabs();
   renderAppList('');
   $('appSearch').focus();
+}
+
+// Show All/Apps/Games tabs only when there are games to separate.
+function renderFilterTabs() {
+  const bar = $('appFilter');
+  const hasGames = (appsCache || []).some((a) => a.type === 'game');
+  bar.classList.toggle('hidden', !hasGames);
+  if (!hasGames) { appFilter = 'all'; return; }
+  const tabs = [['all', 'All'], ['app', 'Apps'], ['game', 'Games']];
+  bar.innerHTML = '';
+  for (const [key, label] of tabs) {
+    const b = document.createElement('button');
+    b.className = 'seg-btn' + (appFilter === key ? ' active' : '');
+    b.textContent = label;
+    b.onclick = () => { appFilter = key; renderFilterTabs(); renderAppList($('appSearch').value); };
+    bar.appendChild(b);
+  }
 }
 
 function renderAppList(filter) {
   const list = $('appList');
   const q = filter.trim().toLowerCase();
-  const items = (appsCache || []).filter((a) => a.name.toLowerCase().includes(q));
+  const items = (appsCache || []).filter((a) =>
+    a.name.toLowerCase().includes(q) && (appFilter === 'all' || (a.type || 'app') === appFilter));
   iconQueue = []; // drop pending loads for the previous (now-removed) rows
   if (!items.length) {
     list.innerHTML = `<div class="app-empty">${appsCache && appsCache.length

@@ -52,7 +52,7 @@ function scanSteamGames() {
             const ip = path.join(iconDir, cand);
             if (fs.existsSync(ip)) { iconPath = ip; break; }
           }
-          out.push({ name, path: `steam://rungameid/${appid}`, iconPath });
+          out.push({ name, path: `steam://rungameid/${appid}`, iconPath, type: 'game' });
         } catch { /* skip bad manifest */ }
       }
     }
@@ -65,7 +65,7 @@ function scanSteamGames() {
 function scanApps() {
   const found = new Map(); // name -> launch path
   const sorted = () => [...found.entries()]
-    .map(([name, p]) => ({ name, path: p }))
+    .map(([name, p]) => ({ name, path: p, type: 'app' }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   if (process.platform === 'darwin') {

@@ -329,6 +329,16 @@ body.editing #btnPreview { outline: none; }
 
 /* ── App picker ── */
 .app-picker { width: 480px; }
+/* Segmented filter (All / Apps / Games) */
+.seg { display: flex; gap: 4px; margin-bottom: var(--s3); background: var(--bg); border: 1px solid var(--hairline); border-radius: var(--r-pill); padding: 3px; }
+.seg-btn {
+  flex: 1; border: 0; background: transparent; color: var(--ink-soft);
+  border-radius: var(--r-pill); padding: 7px 10px; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background var(--t) var(--ease), color var(--t) var(--ease);
+}
+.seg-btn:hover { color: var(--ink); }
+.seg-btn.active { background: var(--ink); color: #0c0d10; }
+
 .app-search-wrap { position: relative; margin-bottom: var(--s3); }
 .app-search-wrap svg {
   position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
