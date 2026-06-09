@@ -117,10 +117,10 @@ function createWindow() {
     y: y + 60,
     width: startW,
     height: startH,
-    frame: true,
+    frame: false,          // no OS title bar — our toolbar is the drag handle
     fullscreen: false,
     resizable: true,
-    backgroundColor: '#0b0e16',
+    backgroundColor: '#0c0d10',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -217,6 +217,9 @@ ipcMain.handle('dialog:pickPath', async () => {
   });
   return res.canceled || !res.filePaths.length ? '' : res.filePaths[0];
 });
+
+ipcMain.handle('window:minimize', () => { if (win) win.minimize(); });
+ipcMain.handle('window:close', () => { if (win) win.close(); });
 
 ipcMain.handle('app:quit', () => app.quit());
 

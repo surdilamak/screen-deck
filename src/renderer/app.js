@@ -27,6 +27,8 @@ const ICON_PATHS = {
   grid: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
   search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  minus: '<path d="M5 12h14"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
 };
@@ -278,7 +280,7 @@ function formButton() {
 }
 
 function updatePreview() {
-  applyButtonToCell($('btnPreview'), formButton(), 108);
+  applyButtonToCell($('btnPreview'), formButton(), 92);
 }
 
 function syncTypeUI() {
@@ -537,6 +539,8 @@ function paintIcons() {
   $('editToggle').innerHTML = icon('pencil') + '<span>Edit</span>';
   $('fsBtn').innerHTML = icon('maximize') + '<span>Fullscreen</span>';
   $('settingsBtn').innerHTML = icon('settings');
+  $('minBtn').innerHTML = icon('minus');
+  $('closeBtn').innerHTML = icon('x');
   $('chooseAppBtn').innerHTML = icon('grid') + '<span>Choose App… (auto-fills name + icon)</span>';
   $('browsePathBtn').innerHTML = icon('folder') + '<span>Browse… (pick file/folder)</span>';
   $('imgUploadBtn').innerHTML = icon('upload', 13) + '<span>Upload</span>';
@@ -552,6 +556,8 @@ function bind() {
   $('editToggle').addEventListener('click', toggleEdit);
   $('fsBtn').addEventListener('click', () => deck.toggleFullscreen());
   $('settingsBtn').addEventListener('click', openSettings);
+  $('minBtn').addEventListener('click', () => deck.minimize());
+  $('closeBtn').addEventListener('click', () => deck.closeWindow());
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') deck.setFullscreen(false); });
   window.addEventListener('resize', () => { if (config) sizeGrid(); });
 

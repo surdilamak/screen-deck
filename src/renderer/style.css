@@ -70,7 +70,21 @@ button { font-family: inherit; }
   background: var(--surface);
   border-bottom: 1px solid var(--hairline);
   position: relative; z-index: var(--z-toolbar);
+  -webkit-app-region: drag;   /* frameless: toolbar is the window drag handle */
 }
+.tool-btn, .win-ctl, .page-add { -webkit-app-region: no-drag; }
+
+/* Custom window controls (frameless) */
+.win-controls { display: inline-flex; gap: 2px; margin-left: var(--s2); -webkit-app-region: no-drag; }
+.win-ctl {
+  width: 30px; height: 30px; border: 0; background: transparent;
+  color: var(--ink-soft); border-radius: var(--r-sm); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background var(--t) var(--ease), color var(--t) var(--ease);
+}
+.win-ctl svg { width: 15px; height: 15px; }
+.win-ctl:hover { background: var(--surface-3); color: var(--ink); }
+.win-ctl.close:hover { background: var(--danger); color: #fff; }
 #status {
   font-family: var(--mono);
   font-size: 11px; letter-spacing: 0.6px; text-transform: uppercase;
@@ -200,15 +214,23 @@ body.editing .cell:not(.empty) .badge-edit { display: inline-flex; }
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   padding: var(--s5);
-  width: 440px; max-width: 92vw; max-height: 92vh; overflow-y: auto;
+  width: 440px; max-width: 92vw; max-height: 90vh;
+  overflow-y: auto; overflow-x: hidden;   /* never scroll sideways */
   box-shadow: 0 28px 60px rgba(0,0,0,0.55);
 }
+/* Prevent flex children from forcing horizontal overflow */
+.modal .row2, .modal .icon-row, .modal .preview-wrap,
+.modal .range-row, .modal .img-controls, .modal .modal-actions { min-width: 0; }
+.modal .row2 > *, .modal .icon-row > *, .modal .preview-wrap > *,
+.modal .range-row > * { min-width: 0; }
+.modal input, .modal select { max-width: 100%; }
+.img-controls { flex-wrap: wrap; }       /* Upload / GIF / Clear wrap if tight */
 .modal h2 {
   font-size: 22px; font-weight: 600; letter-spacing: -0.4px;
   margin-bottom: var(--s4);
 }
 .modal label, .field-label {
-  display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--s4);
+  display: flex; flex-direction: column; gap: 5px; margin-bottom: var(--s3);
   font-size: 12px; color: var(--ink-soft);
 }
 .modal input, .modal select {
@@ -242,7 +264,7 @@ body.editing .cell:not(.empty) .badge-edit { display: inline-flex; }
 /* Live preview + size slider + transparent toggle */
 .preview-wrap { display: flex; gap: var(--s4); align-items: center; margin-bottom: var(--s4); }
 .preview-box {
-  width: 120px; height: 120px; flex: 0 0 auto;
+  width: 104px; height: 104px; flex: 0 0 auto;
   background:
     linear-gradient(45deg, #1a2030 25%, transparent 25%) 0 0/16px 16px,
     linear-gradient(-45deg, #1a2030 25%, transparent 25%) 0 8px/16px 16px,
@@ -252,7 +274,7 @@ body.editing .cell:not(.empty) .badge-edit { display: inline-flex; }
   border-radius: var(--r-card); padding: 6px;
   display: flex; align-items: center; justify-content: center;
 }
-#btnPreview { width: 108px; height: 108px; cursor: default; }
+#btnPreview { width: 92px; height: 92px; cursor: default; }
 body.editing #btnPreview { outline: none; }
 #btnPreview .badge-edit { display: none !important; }
 .preview-hint { font-size: 11px; color: var(--ink-soft); line-height: 1.5; }

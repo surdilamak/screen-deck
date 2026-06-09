@@ -12,5 +12,7 @@ contextBridge.exposeInMainWorld('deck', {
   moveToDisplay: (id) => ipcRenderer.invoke('window:moveToDisplay', id),
   setFullscreen: (on) => ipcRenderer.invoke('window:setFullscreen', on),
   toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
+  minimize: () => ipcRenderer.invoke('window:minimize'),
+  closeWindow: () => ipcRenderer.invoke('window:close'),
   quit: () => ipcRenderer.invoke('app:quit'),
 });
