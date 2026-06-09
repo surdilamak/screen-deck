@@ -68,18 +68,35 @@ function scanApps() {
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
-
-// Known Chromium bug: a 1px line can appear at the edge in fullscreen on Windows
-// when GPU compositing is on. Disabling HW accel removes it (perf cost is trivial
-// for this app). Must be called before app is ready.
-if (isWin) app.disableHardwareAcceleration();
+let winFs = false;
+let savedBounds = null;
 
 // macOS: simple fullscreen (stays in same Space so clicks land on a 2nd display).
-// Windows/Linux: native fullscreen (covers the display exactly, no DIP gap).
+// Windows: a frameless window OVER-scanned a few px past every display edge. Native
+// fullscreen leaves a ~2px white compositor line at the bottom; pushing the window
+// edges just off-screen hides it while still covering the whole panel.
+const OVERSCAN = 4; // px past each edge
 function setDeckFullscreen(on) {
   if (!win) return false;
-  if (isMac) win.setSimpleFullScreen(on);
-  else win.setFullScreen(on);
+  if (isMac) {
+    win.setSimpleFullScreen(on);
+  } else if (isWin) {
+    if (on) {
+      savedBounds = win.getBounds();
+      const b = screen.getDisplayMatching(win.getBounds()).bounds;
+      win.setAlwaysOnTop(true, 'screen-saver');
+      win.setBounds({
+        x: b.x - OVERSCAN, y: b.y - OVERSCAN,
+        width: b.width + OVERSCAN * 2, height: b.height + OVERSCAN * 2,
+      });
+    } else {
+      win.setAlwaysOnTop(false);
+      if (savedBounds) win.setBounds(savedBounds);
+    }
+    winFs = on;
+  } else {
+    win.setFullScreen(on);
+  }
   win.focus();
   win.webContents.send('deck:fullscreen', isDeckFullscreen());
   return on;
@@ -87,7 +104,9 @@ function setDeckFullscreen(on) {
 
 function isDeckFullscreen() {
   if (!win) return false;
-  return isMac ? win.isSimpleFullScreen() : win.isFullScreen();
+  if (isMac) return win.isSimpleFullScreen();
+  if (isWin) return winFs;
+  return win.isFullScreen();
 }
 
 // Pick which display to show the deck on.
@@ -216,17 +235,18 @@ const biggest = (...cands) => cands.filter(Boolean).sort((a, b) => b.w - a.w)[0]
 
 ipcMain.handle('apps:icon', async (_e, filePath) => {
   if (isWin) {
+    // Resolve the Start Menu .lnk to its real target .exe.
     let target = filePath;
     if (filePath.toLowerCase().endsWith('.lnk')) {
       try { const lnk = shell.readShortcutLink(filePath); if (lnk && lnk.target) target = lnk.target; }
       catch { /* keep .lnk */ }
     }
-    // Pick the LARGEST of: shell thumbnail (up to 256) and the large file icon.
+    // Only REAL icons (a .lnk thumbnail is a generic large doc image that would
+    // wrongly win on size). getFileIcon resolves .lnk to the real icon too.
     const best = biggest(
-      await iconThumb(target),
-      await iconFile(target, 'large'),
-      await iconThumb(filePath),
-      await iconFile(filePath, 'large'),
+      await iconThumb(target),         // high-res app icon if the .exe embeds one
+      await iconFile(target, 'large'), // real icon (smaller) from the target
+      await iconFile(filePath, 'large'), // real icon resolved from the .lnk itself
     );
     return best ? best.url : '';
   }
