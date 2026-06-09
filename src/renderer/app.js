@@ -156,7 +156,7 @@ function sizeGrid() {
   grid.style.gridTemplateRows = `repeat(${rows}, ${size}px)`;
 }
 
-const DEFAULT_SCALE = 0.9;
+const DEFAULT_SCALE = 1.0; // new buttons: icon fills the card (Stream Deck style)
 
 // Render a button's appearance into a .cell element. Shared by the grid and the
 // editor's live preview. `px` is the square size of the card in pixels.
@@ -408,7 +408,6 @@ function renderAppList(filter) {
 
 async function selectApp(a) {
   $('f-value').value = a.path;
-  if (!$('f-label').value.trim()) $('f-label').value = a.name;
   $('appPickerOverlay').classList.add('hidden');
   // Auto-set the button icon from the app's icon (user can still override).
   const ic = iconCache.get(a.path) || (await deck.getAppIcon(a.path));
@@ -421,7 +420,6 @@ async function openPathPicker() {
   const p = await deck.pickPath();
   if (!p) return;
   $('f-value').value = p;
-  if (!$('f-label').value.trim()) $('f-label').value = p.split('/').filter(Boolean).pop() || p;
   const ic = await deck.getAppIcon(p);
   if (ic) { pendingImage = ic; setImagePreview(ic); $('f-icon').value = ''; }
   updatePreview();
