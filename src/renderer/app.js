@@ -394,7 +394,8 @@ function renderMonitor() {
   $('monitor').innerHTML = html;
   if (editing) $('monCfgBtn').addEventListener('click', openMonitorConfig);
   updateClock();
-  fetchStats();
+  if (lastStats) applyStats(lastStats); // instant: show last-known values, no empty flash
+  fetchStats();                         // then refresh
 }
 
 // Configure which monitor widgets are shown (edit mode).
@@ -440,9 +441,16 @@ const _kbs = (v) => (v == null ? '—' : (v >= 1024 ? (v / 1024).toFixed(1) + ' 
 function setTxt(id, t) { const e = $(id); if (e) e.textContent = t; }
 function setBar(id, v) { const e = $(id); if (e) e.style.width = (v == null ? 0 : Math.max(0, Math.min(100, v))) + '%'; }
 
+let lastStats = null; // cache so switching back to the monitor shows values instantly
+
 async function fetchStats() {
   let s; try { s = await deck.getStats(); } catch { return; }
   if (page().type !== 'monitor') return; // page changed mid-fetch
+  lastStats = s;
+  applyStats(s);
+}
+
+function applyStats(s) {
   setTxt('mon-cpu-name', s.cpu.name || 'CPU');
   setTxt('mon-cpu-load', _pct(s.cpu.load)); setBar('mon-cpu-load-bar', s.cpu.load);
   setTxt('mon-cpu-temp', _deg(s.cpu.tempC));
@@ -493,6 +501,7 @@ function openEditor(index, btn) {
   $('f-size').value = scale;
   $('sizeVal').textContent = scale + '%';
   $('f-transparent').checked = !!btn?.transparent;
+  $('f-url-reuse').checked = !!btn?.action?.reuse;
   $('f-fit').value = btn?.imageFit === 'cover' ? 'cover' : 'contain';
   $('f-pos').value = btn?.imagePosition || 'center';
   syncFitUI();
@@ -508,6 +517,8 @@ function openEditor(index, btn) {
 function formButton() {
   const type = $('f-type').value;
   const existing = buttonAt(editingIndex);
+  const action = { type, value: type === 'page' ? $('f-page').value : $('f-value').value.trim() };
+  if (type === 'url') action.reuse = $('f-url-reuse').checked;
   return {
     label: $('f-label').value.trim(),
     icon: $('f-icon').value.trim(),
@@ -517,7 +528,7 @@ function formButton() {
     transparent: $('f-transparent').checked,
     imageFit: $('f-fit').value,
     imagePosition: $('f-pos').value,
-    action: { type, value: type === 'page' ? $('f-page').value : $('f-value').value.trim() },
+    action,
   };
 }
 
@@ -537,6 +548,7 @@ function syncTypeUI() {
   $('pageValueLabel').classList.toggle('hidden', !isPage);
   $('chooseAppBtn').classList.toggle('hidden', t !== 'app');
   $('browsePathBtn').classList.toggle('hidden', t !== 'path');
+  $('urlReuseLabel').classList.toggle('hidden', t !== 'url');
   $('f-value').placeholder = VALUE_PLACEHOLDER[t] || '';
   $('hint').textContent = HINTS[t] || '';
   updatePreview();

@@ -1,11 +1,30 @@
 // Action executor — runs the macro behind a button.
 // Phase 1 actions (no native deps): app, url, path, shell, applescript.
 // Phase 2 (needs a native module): keys (keystroke/hotkey simulation).
-const { shell } = require('electron');
+const { shell, BrowserWindow } = require('electron');
 const { exec } = require('child_process');
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
+
+// Reusable URL windows: open a URL in a dedicated window; clicking again focuses
+// the same window instead of spawning a new browser tab. Keyed by URL.
+const urlWindows = new Map();
+function openReusableUrl(url) {
+  const existing = urlWindows.get(url);
+  if (existing && !existing.isDestroyed()) {
+    if (existing.isMinimized()) existing.restore();
+    existing.focus();
+    return;
+  }
+  const w = new BrowserWindow({
+    width: 1100, height: 760, autoHideMenuBar: true, backgroundColor: '#0c0d10',
+    webPreferences: { contextIsolation: true, nodeIntegration: false },
+  });
+  w.loadURL(url);
+  w.on('closed', () => urlWindows.delete(url));
+  urlWindows.set(url, w);
+}
 
 // nut-js is a native module; load lazily so a load failure doesn't crash the
 // whole app — only the keystroke actions degrade.
@@ -88,6 +107,7 @@ async function execute(action) {
 
     case 'url': {
       const url = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+      if (action.reuse) return openReusableUrl(url);
       return shell.openExternal(url);
     }
 
