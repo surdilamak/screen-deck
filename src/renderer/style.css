@@ -162,7 +162,10 @@ button { font-family: inherit; }
   display: grid; gap: var(--s3); padding: var(--s4);
   justify-content: center; align-content: center;
 }
-#monitor { flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto; padding: var(--s4); }
+#monitor {
+  flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto; padding: var(--s4);
+  touch-action: none;   /* let #content handle horizontal swipe (no scroll-hijack) */
+}
 .cell {
   aspect-ratio: 1 / 1;
   border-radius: var(--r-card);
