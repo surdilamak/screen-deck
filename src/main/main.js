@@ -348,7 +348,10 @@ ipcMain.handle('sys:stats', async () => {
   const gpu = ctrls.find((c) => c.temperatureGpu != null || c.utilizationGpu != null)
     || ctrls.find((c) => /nvidia|geforce|rtx|gtx|radeon|amd/i.test(c.model || '')) || ctrls[0] || {};
   const n0 = (net && net[0]) || {};
-  const disk = (disks || []).filter((d) => d.size > 0).sort((a, b) => b.size - a.size)[0] || {};
+  const diskList = (disks || [])
+    .filter((d) => d.size > 0)
+    .map((d) => ({ mount: d.mount || d.fs || '', pct: d.use != null ? Math.round(d.use) : null }))
+    .sort((a, b) => a.mount.localeCompare(b.mount));
   const usedMem = mem.active || mem.used || 0;
   return {
     cpu: {
@@ -373,7 +376,7 @@ ipcMain.handle('sys:stats', async () => {
       upKBs: n0.tx_sec != null ? n0.tx_sec / 1024 : null,
       downKBs: n0.rx_sec != null ? n0.rx_sec / 1024 : null,
     },
-    disk: { mount: disk.mount || disk.fs || '', pct: disk.use != null ? Math.round(disk.use) : null },
+    disks: diskList,
   };
 });
 

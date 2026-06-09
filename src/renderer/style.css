@@ -216,14 +216,15 @@ body.editing .cell:not(.empty):active { cursor: grabbing; }
 
 /* ── Monitor dashboard ── */
 .mon-clock { text-align: center; font-size: 40px; font-weight: 600; letter-spacing: 1px; margin-bottom: var(--s3); font-variant-numeric: tabular-nums; }
-.mon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+.mon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: var(--s3); align-content: start; }
 .mon-card {
   background: linear-gradient(180deg, var(--surface-2), var(--surface));
   border: 1px solid var(--hairline); border-radius: var(--r-card);
   padding: var(--s4);
 }
-.mon-card.wide { grid-column: span 1; }
-.mon-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--s3); margin-top: var(--s3); }
+.mon-disk-row { display: flex; flex-direction: column; gap: 5px; }
+.mon-cfgbar { display: flex; justify-content: flex-end; margin-bottom: var(--s3); }
+.cfg-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: var(--s4); }
 .mon-head { display: flex; align-items: center; gap: 10px; margin-bottom: var(--s3); }
 .mon-head svg { width: 22px; height: 22px; color: var(--ink-soft); }
 .mon-title { font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

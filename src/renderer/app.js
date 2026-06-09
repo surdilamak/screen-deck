@@ -358,52 +358,65 @@ let monClockTimer = null, monStatsTimer = null;
 const monMetric = (k, id, withBar) =>
   `<div class="mon-metric"><div class="ml"><span class="k">${k}</span><span class="v" id="${id}">—</span></div>${withBar ? `<div class="mon-bar"><i id="${id}-bar" style="width:0%"></i></div>` : ''}</div>`;
 
+const ALL_WIDGETS = [
+  ['cpu', 'CPU'], ['gpu', 'GPU'], ['ram', 'RAM'], ['network', 'Network'], ['storage', 'Storage'],
+];
+const DEFAULT_WIDGETS = ['cpu', 'gpu', 'ram', 'network', 'storage'];
+function monEnabled() {
+  const w = page().widgets;
+  return Array.isArray(w) && w.length ? w : DEFAULT_WIDGETS.slice();
+}
+
+const monCard = (ic, titleHtml, bodyHtml) =>
+  `<div class="mon-card"><div class="mon-head">${icon(ic, 22)}${titleHtml}</div>${bodyHtml}</div>`;
+
+function monCardHtml(type) {
+  switch (type) {
+    case 'cpu': return monCard('cpu', '<span class="mon-title" id="mon-cpu-name">CPU</span>',
+      `<div class="mon-metrics">${monMetric('Load', 'mon-cpu-load', true)}${monMetric('Temperature', 'mon-cpu-temp')}${monMetric('Clock', 'mon-cpu-clock')}</div>`);
+    case 'gpu': return monCard('gpu', '<span class="mon-title" id="mon-gpu-name">GPU</span>',
+      `<div class="mon-metrics">${monMetric('Load', 'mon-gpu-load', true)}${monMetric('Temperature', 'mon-gpu-temp')}${monMetric('Clock', 'mon-gpu-clock')}</div>`);
+    case 'ram': return monCard('memory', '<span class="mon-title">RAM</span>',
+      `<div class="mon-metrics">${monMetric('Load', 'mon-ram-load', true)}${monMetric('Used', 'mon-ram-used')}${monMetric('Free', 'mon-ram-free')}</div>`);
+    case 'network': return monCard('wifi', '<span class="mon-title">Network</span>',
+      `<div class="mon-net"><div><span class="v" id="mon-net-down">—</span><div class="k">Down</div></div><div><span class="v" id="mon-net-up">—</span><div class="k">Up</div></div></div>`);
+    case 'storage': return monCard('drive', '<span class="mon-title">Storage</span>',
+      `<div class="mon-metrics" id="mon-disks"></div>`);
+    default: return '';
+  }
+}
+
 function renderMonitor() {
-  $('monitor').innerHTML = `
-    <div class="mon-clock" id="mon-clock">--:--</div>
-    <div class="mon-grid">
-      <div class="mon-card">
-        <div class="mon-head">${icon('cpu', 22)}<span class="mon-title" id="mon-cpu-name">CPU</span></div>
-        <div class="mon-metrics">
-          ${monMetric('Load', 'mon-cpu-load', true)}
-          ${monMetric('Temperature', 'mon-cpu-temp')}
-          ${monMetric('Clock', 'mon-cpu-clock')}
-        </div>
-      </div>
-      <div class="mon-card">
-        <div class="mon-head">${icon('gpu', 22)}<span class="mon-title" id="mon-gpu-name">GPU</span></div>
-        <div class="mon-metrics">
-          ${monMetric('Load', 'mon-gpu-load', true)}
-          ${monMetric('Temperature', 'mon-gpu-temp')}
-          ${monMetric('Clock', 'mon-gpu-clock')}
-        </div>
-      </div>
-    </div>
-    <div class="mon-row3">
-      <div class="mon-card">
-        <div class="mon-head">${icon('memory', 22)}<span class="mon-title">RAM</span></div>
-        <div class="mon-metrics">
-          ${monMetric('Load', 'mon-ram-load', true)}
-          ${monMetric('Used', 'mon-ram-used')}
-          ${monMetric('Free', 'mon-ram-free')}
-        </div>
-      </div>
-      <div class="mon-card">
-        <div class="mon-head">${icon('wifi', 22)}<span class="mon-title">Network</span></div>
-        <div class="mon-net">
-          <div><span class="v" id="mon-net-down">—</span><div class="k">Down</div></div>
-          <div><span class="v" id="mon-net-up">—</span><div class="k">Up</div></div>
-        </div>
-      </div>
-      <div class="mon-card">
-        <div class="mon-head">${icon('drive', 22)}<span class="mon-title">Storage</span></div>
-        <div class="mon-metrics">
-          ${monMetric('Disk', 'mon-disk', true)}
-        </div>
-      </div>
-    </div>`;
+  const enabled = monEnabled();
+  let html = '<div class="mon-clock" id="mon-clock">--:--</div>';
+  if (editing) html += `<div class="mon-cfgbar"><button id="monCfgBtn" class="btn-ghost sm">${icon('settings', 13)}<span>Configure widgets</span></button></div>`;
+  html += '<div class="mon-grid">' + enabled.map(monCardHtml).join('') + '</div>';
+  $('monitor').innerHTML = html;
+  if (editing) $('monCfgBtn').addEventListener('click', openMonitorConfig);
   updateClock();
   fetchStats();
+}
+
+// Configure which monitor widgets are shown (edit mode).
+function openMonitorConfig() {
+  const enabled = new Set(monEnabled());
+  const list = $('monCfgList');
+  list.innerHTML = '';
+  for (const [type, label] of ALL_WIDGETS) {
+    const row = document.createElement('label');
+    row.className = 'checkbox';
+    row.innerHTML = `<input type="checkbox" value="${type}" ${enabled.has(type) ? 'checked' : ''}/> ${label}`;
+    list.appendChild(row);
+  }
+  $('monCfgOverlay').classList.remove('hidden');
+}
+async function saveMonitorConfig() {
+  const checked = [...$('monCfgList').querySelectorAll('input:checked')].map((i) => i.value);
+  // Keep canonical order
+  page().widgets = ALL_WIDGETS.map(([t]) => t).filter((t) => checked.includes(t));
+  await persist();
+  $('monCfgOverlay').classList.add('hidden');
+  render();
 }
 
 function startMonitor() {
@@ -443,7 +456,12 @@ async function fetchStats() {
   setTxt('mon-ram-free', s.mem.freeMB + ' MB');
   setTxt('mon-net-down', _kbs(s.net.downKBs));
   setTxt('mon-net-up', _kbs(s.net.upKBs));
-  setTxt('mon-disk', (s.disk.mount ? s.disk.mount + '  ' : '') + _pct(s.disk.pct)); setBar('mon-disk-bar', s.disk.pct);
+  const dz = $('mon-disks');
+  if (dz) {
+    dz.innerHTML = (s.disks || []).map((d) =>
+      `<div class="mon-disk-row"><div class="ml"><span class="k">${escapeHtml(d.mount)}</span><span class="v">${_pct(d.pct)}</span></div><div class="mon-bar"><i style="width:${d.pct || 0}%"></i></div></div>`
+    ).join('') || '<span class="k">No disks</span>';
+  }
 }
 
 // ── Button editor ──
@@ -778,7 +796,7 @@ function toggleEdit() {
   editing = !editing;
   document.body.classList.toggle('editing', editing);
   $('editToggle').classList.toggle('active', editing);
-  renderPageStrip();
+  render();
 }
 
 async function persist() { await deck.saveConfig(config); }
@@ -874,6 +892,8 @@ function bind() {
     gifTimer = setTimeout(() => searchGiphy(q), 350);
   });
   $('gifPickerClose').addEventListener('click', () => $('gifPickerOverlay').classList.add('hidden'));
+  $('monCfgSave').addEventListener('click', saveMonitorConfig);
+  $('monCfgCancel').addEventListener('click', () => $('monCfgOverlay').classList.add('hidden'));
   $('imgFile').addEventListener('change', onImageFile);
   $('imgClearBtn').addEventListener('click', () => { pendingImage = ''; setImagePreview(''); updatePreview(); });
   $('saveBtn').addEventListener('click', saveButton);
