@@ -42,6 +42,7 @@ let editing = false;
 let editingIndex = null;
 let pendingImage; // undefined = keep, '' = cleared, string = new data URL
 let cellPx = 120; // current computed square size of a grid button
+let swiped = false; // set true when a pointer gesture was a page-swipe (suppresses tap)
 
 const $ = (id) => document.getElementById(id);
 const grid = $('grid');
@@ -201,7 +202,22 @@ function renderGrid() {
   }
 }
 
+// Carousel: change page with a slide animation. delta +1 = next, -1 = prev.
+function changePage(delta) {
+  const n = config.pages.length;
+  const next = Math.min(n - 1, Math.max(0, pageIndex + delta));
+  if (next === pageIndex) return;
+  const from = delta > 0 ? 1 : -1;
+  pageIndex = next;
+  render();
+  grid.animate(
+    [{ transform: `translateX(${from * 36}px)`, opacity: 0.3 }, { transform: 'none', opacity: 1 }],
+    { duration: 200, easing: 'cubic-bezier(0.2,0,0,1)' },
+  );
+}
+
 async function onCellClick(index, btn) {
+  if (swiped) { swiped = false; return; } // ignore the tap that ends a swipe
   if (editing) return openEditor(index, btn);
   if (!btn) return openEditor(index, null);
 
@@ -560,6 +576,17 @@ function bind() {
   $('closeBtn').addEventListener('click', () => deck.closeWindow());
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') deck.setFullscreen(false); });
   window.addEventListener('resize', () => { if (config) sizeGrid(); });
+
+  // Swipe left/right on the grid to flip pages (carousel). Works for touch & mouse.
+  let sx = 0, sy = 0;
+  grid.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; swiped = false; });
+  grid.addEventListener('pointerup', (e) => {
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      swiped = true;            // suppress the cell tap that follows
+      changePage(dx < 0 ? 1 : -1);
+    }
+  });
 
   $('f-type').addEventListener('change', syncTypeUI);
   $('f-label').addEventListener('input', updatePreview);

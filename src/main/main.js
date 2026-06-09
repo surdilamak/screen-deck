@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, nativeImage, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -67,13 +67,14 @@ function scanApps() {
 }
 
 const isMac = process.platform === 'darwin';
+const isWin = process.platform === 'win32';
 
-// On macOS, native fullscreen moves the window to a separate Space, which on a
-// secondary display makes mouse clicks miss the window. "Simple fullscreen"
-// covers the screen while staying in the same Space, so clicks work normally.
+// macOS: simple fullscreen (stays in same Space so clicks land on a 2nd display).
+// Windows: kiosk mode = true borderless fullscreen with NO frame/border line.
 function setDeckFullscreen(on) {
   if (!win) return false;
   if (isMac) win.setSimpleFullScreen(on);
+  else if (isWin) win.setKiosk(on);
   else win.setFullScreen(on);
   win.focus();
   // Tell the renderer so it can switch between display (clean) and edit chrome.
@@ -83,7 +84,9 @@ function setDeckFullscreen(on) {
 
 function isDeckFullscreen() {
   if (!win) return false;
-  return isMac ? win.isSimpleFullScreen() : win.isFullScreen();
+  if (isMac) return win.isSimpleFullScreen();
+  if (isWin) return win.isKiosk();
+  return win.isFullScreen();
 }
 
 // Pick which display to show the deck on.
@@ -194,24 +197,35 @@ ipcMain.handle('apps:list', () => {
   try { return scanApps(); } catch { return []; }
 });
 
+const iconViaThumb = async (p) => {
+  try {
+    const t = await nativeImage.createThumbnailFromPath(p, { width: 128, height: 128 });
+    return t.isEmpty() ? '' : t.toDataURL();
+  } catch { return ''; }
+};
+const iconViaFileIcon = async (p) => {
+  // NOTE: size 'large' crashes Electron (FATAL/SIGTRAP) on macOS — use 'normal'.
+  try {
+    const i = await app.getFileIcon(p, { size: 'normal' });
+    return i.isEmpty() ? '' : i.toDataURL();
+  } catch { return ''; }
+};
+
 ipcMain.handle('apps:icon', async (_e, filePath) => {
-  // OS thumbnail service: QuickLook (macOS) gives the REAL app icon (getFileIcon is
-  // generic there). On Windows, getFileIcon resolves .lnk/.exe icons reliably.
-  const viaThumb = async () => {
-    try {
-      const t = await nativeImage.createThumbnailFromPath(filePath, { width: 128, height: 128 });
-      return t.isEmpty() ? '' : t.toDataURL();
-    } catch { return ''; }
-  };
-  const viaFileIcon = async () => {
-    // NOTE: size 'large' crashes Electron (FATAL/SIGTRAP) on macOS — use 'normal'.
-    try {
-      const i = await app.getFileIcon(filePath, { size: 'normal' });
-      return i.isEmpty() ? '' : i.toDataURL();
-    } catch { return ''; }
-  };
-  if (process.platform === 'win32') return (await viaFileIcon()) || (await viaThumb());
-  return (await viaThumb()) || (await viaFileIcon());
+  if (isWin) {
+    // A Start Menu entry is a .lnk — resolve it to the real target so we get the
+    // app's actual icon (the shortcut itself reports only a generic icon).
+    let target = filePath;
+    if (filePath.toLowerCase().endsWith('.lnk')) {
+      try {
+        const lnk = shell.readShortcutLink(filePath);
+        if (lnk && lnk.target) target = lnk.target;
+      } catch { /* keep .lnk path */ }
+    }
+    return (await iconViaFileIcon(target)) || (await iconViaThumb(target)) || (await iconViaFileIcon(filePath));
+  }
+  // macOS: QuickLook thumbnail gives the REAL icon (getFileIcon is generic there).
+  return (await iconViaThumb(filePath)) || (await iconViaFileIcon(filePath));
 });
 
 // Native file/folder picker for the "Open File/Folder" action.

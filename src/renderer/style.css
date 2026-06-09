@@ -53,6 +53,10 @@ html, body {
 }
 body { display: flex; flex-direction: column; }
 
+/* Invisible scrollbars everywhere (scroll still works via wheel / touch / drag) */
+* { scrollbar-width: none; }
+::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
+
 /* Display vs edit separation: fullscreen = clean deck (no toolbar). */
 body.fullscreen #toolbar { display: none; }
 /* Single page & not editing → hide the page strip for a pure-grid display. */
