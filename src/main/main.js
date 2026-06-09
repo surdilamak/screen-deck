@@ -195,18 +195,23 @@ ipcMain.handle('apps:list', () => {
 });
 
 ipcMain.handle('apps:icon', async (_e, filePath) => {
-  // Preferred: OS thumbnail service (QuickLook on macOS, Shell on Windows) returns
-  // the REAL high-res app icon, including icons stored in Assets.car.
-  try {
-    const thumb = await nativeImage.createThumbnailFromPath(filePath, { width: 128, height: 128 });
-    if (!thumb.isEmpty()) return thumb.toDataURL();
-  } catch { /* some apps have no thumbnail — fall back below */ }
-  // Fallback: getFileIcon (often a generic icon, but better than nothing).
-  // NOTE: size 'large' crashes Electron (FATAL/SIGTRAP) on macOS — use 'normal'.
-  try {
-    const img = await app.getFileIcon(filePath, { size: 'normal' });
-    return img.isEmpty() ? '' : img.toDataURL();
-  } catch { return ''; }
+  // OS thumbnail service: QuickLook (macOS) gives the REAL app icon (getFileIcon is
+  // generic there). On Windows, getFileIcon resolves .lnk/.exe icons reliably.
+  const viaThumb = async () => {
+    try {
+      const t = await nativeImage.createThumbnailFromPath(filePath, { width: 128, height: 128 });
+      return t.isEmpty() ? '' : t.toDataURL();
+    } catch { return ''; }
+  };
+  const viaFileIcon = async () => {
+    // NOTE: size 'large' crashes Electron (FATAL/SIGTRAP) on macOS — use 'normal'.
+    try {
+      const i = await app.getFileIcon(filePath, { size: 'normal' });
+      return i.isEmpty() ? '' : i.toDataURL();
+    } catch { return ''; }
+  };
+  if (process.platform === 'win32') return (await viaFileIcon()) || (await viaThumb());
+  return (await viaThumb()) || (await viaFileIcon());
 });
 
 // Native file/folder picker for the "Open File/Folder" action.
