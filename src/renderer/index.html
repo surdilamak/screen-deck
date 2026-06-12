@@ -51,6 +51,8 @@
           <option value="shell">Run Shell Command</option>
           <option value="applescript">Run AppleScript (macOS)</option>
           <option value="page">Open Folder (page)</option>
+          <option value="sequence">Multi-action Sequence</option>
+          <option value="toggle">Toggle (multi-state)</option>
         </select>
       </label>
 
@@ -82,6 +84,18 @@
             <option value="h">Horizontal ↔</option>
           </select>
         </label>
+      </div>
+      <!-- Sequence steps editor -->
+      <div id="seqSteps" class="hidden">
+        <p class="section-label">Steps <span class="hint-inline">— runs in order; delay = wait before each step</span></p>
+        <div id="seqStepList"></div>
+        <button id="seqAddStep" class="btn-ghost sm" style="margin-top:4px">+ Add step</button>
+      </div>
+      <!-- Toggle states editor -->
+      <div id="toggleStates" class="hidden">
+        <p class="section-label">States <span class="hint-inline">— cycles on each press</span></p>
+        <div id="toggleStateList"></div>
+        <button id="toggleAddState" class="btn-ghost sm" style="margin-top:4px">+ Add state</button>
       </div>
       <p id="hint" class="hint"></p>
 
@@ -163,6 +177,9 @@
       </label>
       <label class="checkbox"><input id="s-startfs" type="checkbox" /> Start in fullscreen (kiosk) on launch</label>
       <label class="checkbox"><input id="s-startup" type="checkbox" /> Launch automatically on system startup</label>
+      <p class="section-label" style="margin-top:14px">Auto-profiles <span class="hint-inline">— switch page when app becomes active</span></p>
+      <div id="s-profiles"></div>
+      <button id="s-addProfile" class="btn-ghost sm" style="margin-top:4px">+ Add rule</button>
       <p class="hint" id="appVersion" style="text-align:center;margin-top:4px"></p>
       <div class="modal-actions">
         <button id="quitBtn" class="btn-danger">Quit App</button>

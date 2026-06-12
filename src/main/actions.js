@@ -159,6 +159,15 @@ async function execute(action) {
     case 'system':
       return runSystem(value);
 
+    case 'sequence': {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (const step of (action.steps || [])) {
+        if (step.delay > 0) await sleep(step.delay);
+        if (step.type && step.type !== 'none') await execute({ type: step.type, value: step.value || '', reuse: step.reuse });
+      }
+      return;
+    }
+
     default:
       throw new Error(`Unknown action type: ${action.type}`);
   }

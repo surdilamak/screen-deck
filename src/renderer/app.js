@@ -85,6 +85,21 @@ let pageIndex = 0;
 let editing = false;
 let editingIndex = null;
 let pendingImage; // undefined = keep, '' = cleared, string = new data URL
+let seqSteps = [];        // working copy of sequence steps while editor is open
+let toggleStateList = []; // working copy of toggle states while editor is open
+
+// ── Toggle state tracking (runtime only, not persisted) ──
+const toggleStateMap = new Map(); // btnId → current state index
+function getToggleState(id) { return toggleStateMap.get(id) || 0; }
+function advanceToggleState(id, total) {
+  const next = ((toggleStateMap.get(id) || 0) + 1) % (total || 2);
+  toggleStateMap.set(id, next);
+}
+
+// ── Auto-profile state ──
+let lastManualNav = 0;
+let lastActiveApp = '';
+let autoProfileTimer = null;
 let cellPx = 120; // current computed square size of a grid button
 let swiped = false; // set true when a pointer gesture was a page-swipe (suppresses tap)
 let dragMoved = false; // set true when a button was drag-repositioned (suppresses tap)
@@ -161,7 +176,7 @@ function renderPageStrip() {
         tab.appendChild(mr);
       }
     }
-    tab.onclick = () => { pageIndex = i; render(); };
+    tab.onclick = () => { lastManualNav = Date.now(); pageIndex = i; render(); };
     strip.appendChild(tab);
   });
   if (editing) {
@@ -250,6 +265,34 @@ function applyButtonToCell(cell, btn, px) {
   cell.classList.toggle('folder', !!isFolder);
   cell.classList.remove('empty');
   cell.style.background = btn.transparent ? 'transparent' : (btn.color || '');
+
+  // Toggle button: renders using the current state's appearance
+  if (btn.action && btn.action.type === 'toggle') {
+    const states = btn.states || [];
+    const idx = getToggleState(btn.id);
+    const st = states[idx] || states[0] || {};
+    cell.style.background = btn.transparent ? 'transparent' : (st.color || btn.color || '');
+    const iconPx = Math.round(px * (btn.iconScale ?? DEFAULT_SCALE));
+    let html = '<div class="icon">';
+    const img = st.image || btn.image;
+    if (img) {
+      const fit = btn.imageFit === 'cover' ? 'cover' : 'contain';
+      html += `<img src="${img}" alt="" style="width:${iconPx}px;height:${iconPx}px;object-fit:${fit}">`;
+    } else if (st.icon || btn.icon) {
+      html += `<span class="emoji" style="font-size:${Math.round(iconPx * 0.64)}px">${escapeHtml(st.icon || btn.icon)}</span>`;
+    } else {
+      const dn = defaultActionIcon(st.action);
+      if (dn) html += `<span class="glyph">${icon(dn, Math.round(iconPx * 0.55))}</span>`;
+    }
+    html += '</div>';
+    const lbl = st.label || btn.label;
+    if (lbl) html += `<div class="label">${escapeHtml(lbl)}</div>`;
+    if (states.length > 1) html += `<span class="badge-state">${idx + 1}/${states.length}</span>`;
+    html += `<span class="badge-edit">${icon('pencil', 12)}</span>`;
+    cell.innerHTML = html;
+    return;
+  }
+
   // Volume fader: vintage 90s handle style, spans multiple cells.
   if (btn.action && btn.action.type === 'volume') {
     cell.classList.add('fader');
@@ -489,6 +532,7 @@ async function commitSwipe(startDx, dir) {
   ).finished;
   content.style.transform = '';
   pageIndex += dir;
+  lastManualNav = Date.now();
   render();
   await content.animate(
     [{ transform: `translateX(${dir * w}px)`, opacity: 0.25 }, { transform: 'translateX(0)', opacity: 1 }],
@@ -517,6 +561,24 @@ async function onCellClick(index, btn) {
   }
 
   if (btn.action && btn.action.type === 'volume') return; // fader handles its own drag
+
+  if (btn.action && btn.action.type === 'toggle') {
+    const states = btn.states || [];
+    if (!states.length) return;
+    const idx = getToggleState(btn.id);
+    const st = states[idx];
+    if (st?.action && st.action.type && st.action.type !== 'none') {
+      try {
+        await deck.runAction(st.action);
+        setStatus((btn.label || 'Toggle') + ' → ' + (st.label || ('State ' + (idx + 1))), 'ok');
+      } catch (err) { setStatus(String(err.message || err), 'err'); }
+      setTimeout(() => setStatus('Screen Deck'), 1500);
+    }
+    advanceToggleState(btn.id, states.length);
+    const cell = grid.querySelector(`.cell[data-index="${btn.pos}"]`);
+    if (cell) applyButtonToCell(cell, btn, cellPx);
+    return;
+  }
 
   if (btn.action && btn.action.type === 'sound') { // played in the renderer
     const r = playSound(btn.action.value);
@@ -693,6 +755,66 @@ const VALUE_PLACEHOLDER = {
   keys: 'cmd+shift+4', type: 'Hello world!', shell: 'echo hi', applescript: 'display notification "Hi"',
 };
 
+function renderSeqSteps() {
+  const container = $('seqStepList');
+  if (!container) return;
+  container.innerHTML = '';
+  seqSteps.forEach((step, i) => {
+    const row = document.createElement('div');
+    row.className = 'seq-step-row';
+    const typeOpts = ['keys','app','url','media','shell','applescript','type','system']
+      .map(t => `<option value="${t}"${step.type===t?' selected':''}>${t}</option>`).join('');
+    row.innerHTML = `
+      <select class="seq-type">${typeOpts}</select>
+      <input class="seq-val" type="text" value="${escapeHtml(step.value||'')}" placeholder="value" />
+      <input class="seq-delay" type="number" value="${step.delay||0}" min="0" max="30000" step="50" title="delay before (ms)" />
+      <button class="btn-danger sm seq-del">×</button>`;
+    row.querySelector('.seq-type').onchange = (e) => { seqSteps[i].type = e.target.value; };
+    row.querySelector('.seq-val').oninput = (e) => { seqSteps[i].value = e.target.value; };
+    row.querySelector('.seq-delay').oninput = (e) => { seqSteps[i].delay = parseInt(e.target.value)||0; };
+    row.querySelector('.seq-del').onclick = () => { seqSteps.splice(i, 1); renderSeqSteps(); };
+    container.appendChild(row);
+  });
+}
+
+function renderToggleStates() {
+  const container = $('toggleStateList');
+  if (!container) return;
+  container.innerHTML = '';
+  toggleStateList.forEach((st, i) => {
+    const row = document.createElement('div');
+    row.className = 'toggle-state-row';
+    const typeOpts = ['keys','app','url','media','shell','type','system','none']
+      .map(t => `<option value="${t}"${(st.action?.type||'none')===t?' selected':''}>${t}</option>`).join('');
+    row.innerHTML = `
+      <div class="toggle-state-head">
+        <strong>State ${i+1}</strong>
+        ${toggleStateList.length > 2 ? '<button class="btn-danger sm ts-del">×</button>' : ''}
+      </div>
+      <div class="toggle-state-fields">
+        <label>Label<input class="ts-label" type="text" value="${escapeHtml(st.label||'')}" /></label>
+        <label>Icon<input class="ts-icon" type="text" maxlength="4" value="${escapeHtml(st.icon||'')}" /></label>
+        <label>Color<input class="ts-color" type="color" value="${st.color||'#2563eb'}" /></label>
+        <label>Action<select class="ts-atype">${typeOpts}</select></label>
+        <label>Value<input class="ts-aval" type="text" value="${escapeHtml(st.action?.value||'')}" /></label>
+      </div>`;
+    row.querySelector('.ts-label').oninput = (e) => { toggleStateList[i].label = e.target.value; };
+    row.querySelector('.ts-icon').oninput = (e) => { toggleStateList[i].icon = e.target.value; };
+    row.querySelector('.ts-color').oninput = (e) => { toggleStateList[i].color = e.target.value; };
+    row.querySelector('.ts-atype').onchange = (e) => {
+      if (!toggleStateList[i].action) toggleStateList[i].action = {};
+      toggleStateList[i].action.type = e.target.value;
+    };
+    row.querySelector('.ts-aval').oninput = (e) => {
+      if (!toggleStateList[i].action) toggleStateList[i].action = {};
+      toggleStateList[i].action.value = e.target.value;
+    };
+    const del = row.querySelector('.ts-del');
+    if (del) del.onclick = () => { toggleStateList.splice(i, 1); renderToggleStates(); };
+    container.appendChild(row);
+  });
+}
+
 function openEditor(index, btn) {
   editingIndex = index;
   pendingImage = undefined;
@@ -707,6 +829,19 @@ function openEditor(index, btn) {
   $('sizeVal').textContent = scale + '%';
   $('f-transparent').checked = !!btn?.transparent;
   $('f-url-reuse').checked = !!btn?.action?.reuse;
+  // Sequence
+  seqSteps = btn?.action?.type === 'sequence' ? (btn.action.steps || []).map(s => ({...s})) : [];
+  renderSeqSteps();
+  // Toggle
+  if (btn?.action?.type === 'toggle' && btn.states?.length) {
+    toggleStateList = btn.states.map(s => ({...s, action: {...(s.action || {})}}));
+  } else {
+    toggleStateList = [
+      { label: 'ON', icon: '', color: '#22c55e', action: { type: 'keys', value: '' } },
+      { label: 'OFF', icon: '', color: '#ef4444', action: { type: 'keys', value: '' } },
+    ];
+  }
+  renderToggleStates();
   $('f-span').value = btn?.span ?? 1;
   $('f-spanDir').value = btn?.spanDir ?? 'v';
   $('f-fit').value = btn?.imageFit === 'cover' ? 'cover' : 'contain';
@@ -749,6 +884,12 @@ function formButton() {
     result.span = sp;
     if (sp > 1) result.spanDir = $('f-spanDir').value;
   }
+  if (type === 'sequence') {
+    result.action = { type: 'sequence', steps: seqSteps.map(s => ({...s})) };
+  }
+  if (type === 'toggle') {
+    result.states = toggleStateList.map(s => ({...s, action: {...(s.action||{})}}));
+  }
   return result;
 }
 
@@ -778,6 +919,13 @@ function syncTypeUI() {
   if (isChoice) populateChoice(t, $('f-choice').value);
   $('f-value').placeholder = VALUE_PLACEHOLDER[t] || '';
   $('hint').textContent = HINTS[t] || '';
+  $('seqSteps').classList.toggle('hidden', t !== 'sequence');
+  $('toggleStates').classList.toggle('hidden', t !== 'toggle');
+  if (t === 'sequence' && seqSteps.length === 0) {
+    seqSteps = [{ type: 'keys', value: '', delay: 0 }];
+    renderSeqSteps();
+  }
+  if (t === 'toggle') renderToggleStates();
   updatePreview();
 }
 
@@ -1084,6 +1232,57 @@ async function clearButton() {
   render();
 }
 
+// ── Auto-profile ──
+function startAutoProfile() {
+  if (autoProfileTimer) return;
+  autoProfileTimer = setInterval(async () => {
+    if (!config.autoProfiles?.length) return;
+    if (Date.now() - lastManualNav < 5000) return;
+    try {
+      const active = await deck.getActiveApp();
+      if (!active || active === lastActiveApp) return;
+      lastActiveApp = active;
+      const rule = config.autoProfiles.find((r) => r.match && active.toLowerCase().includes(r.match.toLowerCase()));
+      if (!rule) return;
+      const idx = config.pages.findIndex((p) => p.id === rule.pageId);
+      if (idx < 0 || idx === pageIndex) return;
+      pageIndex = idx;
+      render();
+    } catch { /* ignore */ }
+  }, 2000);
+}
+
+// ── Auto-profile settings UI ──
+let autoProfileList = [];
+function renderAutoProfiles() {
+  const container = $('s-profiles');
+  if (!container) return;
+  container.innerHTML = '';
+  autoProfileList.forEach((rule, i) => {
+    const row = document.createElement('div');
+    row.className = 'profile-row';
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.placeholder = 'App name (e.g. Figma, Code)';
+    inp.value = rule.match || '';
+    inp.oninput = (e) => { autoProfileList[i].match = e.target.value.trim(); };
+    const arrow = document.createElement('span');
+    arrow.textContent = '→'; arrow.className = 'profile-arrow';
+    const sel = document.createElement('select');
+    config.pages.forEach((p) => {
+      const opt = document.createElement('option');
+      opt.value = p.id; opt.textContent = p.name;
+      if (p.id === rule.pageId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.onchange = (e) => { autoProfileList[i].pageId = e.target.value; };
+    const del = document.createElement('button');
+    del.className = 'btn-danger sm'; del.textContent = '×';
+    del.onclick = () => { autoProfileList.splice(i, 1); renderAutoProfiles(); };
+    row.appendChild(inp); row.appendChild(arrow); row.appendChild(sel); row.appendChild(del);
+    container.appendChild(row);
+  });
+}
+
 // ── Settings ──
 async function openSettings() {
   $('s-cols').value = config.grid.cols;
@@ -1101,6 +1300,12 @@ async function openSettings() {
   $('s-giphy').value = config.giphyKey || '';
   $('s-startfs').checked = !!config.startFullscreen;
   $('s-startup').checked = await deck.getStartup();
+  autoProfileList = (config.autoProfiles || []).map(r => ({...r}));
+  renderAutoProfiles();
+  $('s-addProfile').onclick = () => {
+    autoProfileList.push({ match: '', pageId: config.pages[0]?.id || '' });
+    renderAutoProfiles();
+  };
   $('appVersion').textContent = 'Screen Deck v' + await deck.getVersion();
   $('settingsOverlay').classList.remove('hidden');
 }
@@ -1113,6 +1318,7 @@ async function applySettings() {
   await deck.setStartup($('s-startup').checked);
   const displayId = parseInt($('s-display').value, 10);
   config.targetDisplayId = displayId;
+  config.autoProfiles = autoProfileList;
   await persist();
   await deck.moveToDisplay(displayId);
   $('settingsOverlay').classList.add('hidden');
@@ -1235,6 +1441,14 @@ function bind() {
   $('monCfgCancel').addEventListener('click', () => $('monCfgOverlay').classList.add('hidden'));
   $('imgFile').addEventListener('change', onImageFile);
   $('imgClearBtn').addEventListener('click', () => { pendingImage = ''; setImagePreview(''); updatePreview(); });
+  $('seqAddStep').addEventListener('click', () => {
+    seqSteps.push({ type: 'keys', value: '', delay: 0 });
+    renderSeqSteps();
+  });
+  $('toggleAddState').addEventListener('click', () => {
+    toggleStateList.push({ label: 'State ' + (toggleStateList.length + 1), icon: '', color: '#2563eb', action: { type: 'keys', value: '' } });
+    renderToggleStates();
+  });
   $('saveBtn').addEventListener('click', saveButton);
   $('clearBtn').addEventListener('click', clearButton);
   $('cancelBtn').addEventListener('click', () => $('editorOverlay').classList.add('hidden'));
@@ -1252,6 +1466,7 @@ async function init() {
     bind();
     config = await deck.getConfig();
     render();
+    startAutoProfile();
   } catch (err) {
     showError('init failed: ' + (err?.stack || err));
   }

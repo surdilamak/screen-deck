@@ -23,4 +23,5 @@ contextBridge.exposeInMainWorld('deck', {
   closeWindow: () => ipcRenderer.invoke('window:close'),
   quit: () => ipcRenderer.invoke('app:quit'),
   getVersion: () => ipcRenderer.invoke('app:version'),
+  getActiveApp: () => ipcRenderer.invoke('app:active'),
 });

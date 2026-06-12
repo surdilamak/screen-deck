@@ -456,6 +456,27 @@ ipcMain.handle('audio:set', async (_e, v) => {
   try { await loudness.setVolume(Math.max(0, Math.min(100, Math.round(v)))); } catch { /* ignore */ }
 });
 
+ipcMain.handle('app:active', async () => {
+  const { exec } = require('child_process');
+  const { promisify } = require('util');
+  const execP = promisify(exec);
+  try {
+    if (process.platform === 'darwin') {
+      const { stdout } = await execP(`osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'`);
+      return stdout.trim();
+    }
+    if (process.platform === 'win32') {
+      // Use EncodedCommand to avoid quoting hell
+      const script = `$t=Add-Type -PassThru -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(IntPtr h, out int p);' -Name FW -Namespace X; $h=$t::GetForegroundWindow(); $p=0; $t::GetWindowThreadProcessId($h,[ref]$p)|Out-Null; (Get-Process -Id $p -EA 0).ProcessName`;
+      const buf = Buffer.alloc(script.length * 2);
+      for (let i = 0; i < script.length; i++) buf.writeUInt16LE(script.charCodeAt(i), i * 2);
+      const { stdout } = await execP(`powershell -NoProfile -EncodedCommand ${buf.toString('base64')}`);
+      return stdout.trim();
+    }
+    return '';
+  } catch { return ''; }
+});
+
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('app:quit', () => { isQuitting = true; app.quit(); });
 
