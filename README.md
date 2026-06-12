@@ -1,7 +1,7 @@
 # Screen Deck
 
 A customizable touchscreen macro pad (Stream Deck style) for a portable touch monitor.
-Built with Electron — runs on **macOS & Windows**.
+runs on **macOS & Windows**.
 
 ## Run
 
