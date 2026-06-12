@@ -62,6 +62,32 @@ function tokenToKey(Key, tokRaw) {
   throw new Error(`Unknown key: "${tokRaw}"`);
 }
 
+const MEDIA_KEYS = {
+  playpause: 'AudioPlay', next: 'AudioNext', prev: 'AudioPrev', stop: 'AudioStop',
+  mute: 'AudioMute', volup: 'AudioVolUp', voldown: 'AudioVolDown',
+};
+async function sendMediaKey(which) {
+  const { keyboard, Key } = nut();
+  const name = MEDIA_KEYS[which];
+  if (!name) throw new Error(`Unknown media control: ${which}`);
+  await keyboard.pressKey(Key[name]);
+  await keyboard.releaseKey(Key[name]);
+}
+
+function runSystem(which) {
+  if (which === 'lock') {
+    if (isWin) return run('rundll32.exe user32.dll,LockWorkStation');
+    if (isMac) return run('osascript -e \'tell application "System Events" to keystroke "q" using {command down, control down}\'');
+    return run('loginctl lock-session');
+  }
+  if (which === 'sleep') {
+    if (isWin) return run('rundll32.exe powrprof.dll,SetSuspendState 0,1,0');
+    if (isMac) return run('pmset sleepnow');
+    return run('systemctl suspend');
+  }
+  throw new Error(`Unknown system action: ${which}`);
+}
+
 async function sendHotkey(combo) {
   const { keyboard, Key } = nut();
   const keys = combo.split('+').map((tok) => tokenToKey(Key, tok));
@@ -126,6 +152,12 @@ async function execute(action) {
 
     case 'type':
       return nut().keyboard.type(value);
+
+    case 'media':
+      return sendMediaKey(value);
+
+    case 'system':
+      return runSystem(value);
 
     default:
       throw new Error(`Unknown action type: ${action.type}`);

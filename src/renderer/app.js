@@ -36,6 +36,14 @@ const ICON_PATHS = {
   memory: '<path d="M6 19v-3"/><path d="M10 19v-3"/><path d="M14 19v-3"/><path d="M18 19v-3"/><path d="M9 11V9"/><path d="M15 11V9"/><path d="M2 15h20"/><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8H3Z"/>',
   wifi: '<path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.86a10 10 0 0 1 14 0"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/>',
   drive: '<line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/>',
+  music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+};
+
+// Choices for the media / system action types (shown as a dropdown).
+const CHOICES = {
+  media: [['playpause', 'Play / Pause'], ['next', 'Next track'], ['prev', 'Previous track'],
+    ['stop', 'Stop'], ['mute', 'Mute'], ['volup', 'Volume Up'], ['voldown', 'Volume Down']],
+  system: [['lock', 'Lock screen'], ['sleep', 'Sleep']],
 };
 function icon(name, size = 16) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ''}</svg>`;
@@ -331,6 +339,13 @@ async function onCellClick(index, btn) {
     return;
   }
 
+  if (btn.action && btn.action.type === 'sound') { // played in the renderer
+    playSound(btn.action.value);
+    setStatus(btn.label || 'Sound', 'ok');
+    setTimeout(() => setStatus('Screen Deck'), 1500);
+    return;
+  }
+
   setStatus(`Running ${btn.label || ''}…`);
   const res = await deck.runAction(btn.action);
   setStatus(res.ok ? (btn.label || 'Done') : res.error, res.ok ? 'ok' : 'err');
@@ -477,8 +492,11 @@ const HINTS = {
   app: 'App name, e.g. Finder / Spotify / Notes',
   url: 'https://example.com',
   path: '/Users/you/Documents  (or a file)',
-  keys: 'Hotkey combo, e.g. cmd+c · ctrl+shift+t · alt+tab · cmd+space',
+  keys: 'Hotkey combo, e.g. cmd+c · ctrl+shift+t · alt+tab — or click Record',
   type: 'Text to type out automatically',
+  media: 'Media key (works with most players).',
+  system: 'System action.',
+  sound: 'Pick an audio file to play on press (mp3/wav/ogg…).',
   shell: 'Shell command, e.g. open -a Calculator',
   applescript: 'AppleScript, e.g. display notification "Hi"',
   page: 'Pick which page this folder button opens.',
@@ -509,6 +527,9 @@ function openEditor(index, btn) {
   populatePageSelect(btn?.action?.type === 'page' ? btn?.action?.value : '');
   $('clearBtn').style.display = btn ? 'inline-block' : 'none';
   syncTypeUI();
+  if (btn?.action?.type === 'media' || btn?.action?.type === 'system') {
+    populateChoice(btn.action.type, btn.action.value);
+  }
   updatePreview();
   $('editorOverlay').classList.remove('hidden');
 }
@@ -517,7 +538,11 @@ function openEditor(index, btn) {
 function formButton() {
   const type = $('f-type').value;
   const existing = buttonAt(editingIndex);
-  const action = { type, value: type === 'page' ? $('f-page').value : $('f-value').value.trim() };
+  let value;
+  if (type === 'page') value = $('f-page').value;
+  else if (type === 'media' || type === 'system') value = $('f-choice').value;
+  else value = $('f-value').value.trim();
+  const action = { type, value };
   if (type === 'url') action.reuse = $('f-url-reuse').checked;
   return {
     label: $('f-label').value.trim(),
@@ -544,14 +569,30 @@ function updatePreview() {
 function syncTypeUI() {
   const t = $('f-type').value;
   const isPage = t === 'page';
-  $('valueLabel').classList.toggle('hidden', isPage);
+  const isChoice = t === 'media' || t === 'system';
+  $('valueLabel').classList.toggle('hidden', isPage || isChoice);
   $('pageValueLabel').classList.toggle('hidden', !isPage);
+  $('choiceLabel').classList.toggle('hidden', !isChoice);
   $('chooseAppBtn').classList.toggle('hidden', t !== 'app');
   $('browsePathBtn').classList.toggle('hidden', t !== 'path');
+  $('chooseAudioBtn').classList.toggle('hidden', t !== 'sound');
+  $('recordBtn').classList.toggle('hidden', t !== 'keys');
   $('urlReuseLabel').classList.toggle('hidden', t !== 'url');
+  if (isChoice) populateChoice(t, $('f-choice').value);
   $('f-value').placeholder = VALUE_PLACEHOLDER[t] || '';
   $('hint').textContent = HINTS[t] || '';
   updatePreview();
+}
+
+function populateChoice(type, selected) {
+  const sel = $('f-choice');
+  sel.innerHTML = '';
+  for (const [val, label] of (CHOICES[type] || [])) {
+    const o = document.createElement('option');
+    o.value = val; o.textContent = label;
+    if (val === selected) o.selected = true;
+    sel.appendChild(o);
+  }
 }
 
 // ── App picker ──
@@ -662,6 +703,67 @@ async function openPathPicker() {
   const ic = await deck.getAppIcon(p);
   if (ic) { pendingImage = ic; setImagePreview(ic); $('f-icon').value = ''; }
   updatePreview();
+}
+
+// Pick an audio file for a "Play sound" button.
+async function chooseAudio() {
+  const p = await deck.pickAudio();
+  if (!p) return;
+  $('f-value').value = p;
+  updatePreview();
+}
+
+// ── Hotkey recorder ──
+let recording = false;
+let recordHandler = null;
+function codeToToken(code) {
+  let m;
+  if ((m = /^Key([A-Z])$/.exec(code))) return m[1].toLowerCase();
+  if ((m = /^Digit(\d)$/.exec(code))) return m[1];
+  if ((m = /^Numpad(\d)$/.exec(code))) return m[1];
+  if ((m = /^F(\d{1,2})$/.exec(code))) return 'f' + m[1];
+  const named = {
+    Space: 'space', Enter: 'enter', NumpadEnter: 'enter', Tab: 'tab', Backspace: 'backspace',
+    Delete: 'delete', ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+    Home: 'home', End: 'end', PageUp: 'pageup', PageDown: 'pagedown',
+    Comma: 'comma', Period: 'period', Minus: 'minus', Equal: 'equal',
+  };
+  return named[code] || null; // null = modifier-only / unsupported
+}
+function toggleRecord() {
+  if (recording) return stopRecord();
+  recording = true;
+  $('recordBtn').classList.add('armed');
+  $('recordBtn').textContent = 'Press keys…';
+  recordHandler = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.key === 'Escape') return stopRecord();
+    const mods = [];
+    if (e.ctrlKey) mods.push('ctrl');
+    if (e.metaKey) mods.push('cmd');
+    if (e.altKey) mods.push('alt');
+    if (e.shiftKey) mods.push('shift');
+    const key = codeToToken(e.code);
+    if (!key) return;                 // wait for a non-modifier key
+    $('f-value').value = [...mods, key].join('+');
+    stopRecord();
+    updatePreview();
+  };
+  window.addEventListener('keydown', recordHandler, true);
+}
+function stopRecord() {
+  recording = false;
+  if (recordHandler) window.removeEventListener('keydown', recordHandler, true);
+  recordHandler = null;
+  $('recordBtn').classList.remove('armed');
+  $('recordBtn').textContent = '● Record';
+}
+
+// Play a local audio file (soundboard) in the renderer.
+function playSound(p) {
+  if (!p) return;
+  const url = 'file:///' + p.replace(/\\/g, '/').replace(/^\/+/, '');
+  try { new Audio(url).play().catch(() => {}); } catch { /* ignore */ }
 }
 
 // ── GIF picker (GIPHY) ──
@@ -827,6 +929,7 @@ function paintIcons() {
   $('closeBtn').innerHTML = icon('x');
   $('chooseAppBtn').innerHTML = icon('grid') + '<span>Choose App… (auto-fills name + icon)</span>';
   $('browsePathBtn').innerHTML = icon('folder') + '<span>Browse… (pick file/folder)</span>';
+  $('chooseAudioBtn').innerHTML = icon('music') + '<span>Choose audio…</span>';
   $('imgUploadBtn').innerHTML = icon('upload', 13) + '<span>Upload</span>';
   $('imgGifBtn').innerHTML = icon('image', 13) + '<span>GIF</span>';
   document.querySelectorAll('.app-search-wrap').forEach((sw) => {
@@ -894,6 +997,9 @@ function bind() {
   });
   $('chooseAppBtn').addEventListener('click', openAppPicker);
   $('browsePathBtn').addEventListener('click', openPathPicker);
+  $('chooseAudioBtn').addEventListener('click', chooseAudio);
+  $('recordBtn').addEventListener('click', toggleRecord);
+  $('f-choice').addEventListener('change', updatePreview);
   deck.onUpdateStatus((msg) => setStatus(msg, 'ok'));
   deck.onFullscreen((on) => {
     document.body.classList.toggle('fullscreen', on);

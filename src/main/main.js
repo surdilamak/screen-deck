@@ -439,6 +439,14 @@ ipcMain.handle('sys:stats', async () => {
   };
 });
 
+ipcMain.handle('dialog:pickAudio', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    properties: ['openFile'],
+    filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'] }],
+  });
+  return res.canceled || !res.filePaths.length ? '' : res.filePaths[0];
+});
+
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('app:quit', () => { isQuitting = true; app.quit(); });
 

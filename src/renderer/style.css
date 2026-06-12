@@ -357,6 +357,9 @@ body.editing #btnPreview { outline: none; }
 .btn-ghost.sm, .btn-primary.sm { padding: 7px 12px; font-size: 12px; }
 .btn-primary svg, .btn-ghost svg, .btn-danger svg { width: 15px; height: 15px; }
 .choose-app { display: inline-flex; width: 100%; margin: 0 0 var(--s4); }
+.value-row { display: flex; gap: 8px; align-items: center; }
+.value-row input { flex: 1; min-width: 0; }
+#recordBtn.armed { background: var(--danger); border-color: var(--danger); color: #fff; }
 
 /* ── App picker ── */
 .app-picker { width: 480px; }

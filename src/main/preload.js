@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('deck', {
   listApps: () => ipcRenderer.invoke('apps:list'),
   getAppIcon: (p) => ipcRenderer.invoke('apps:icon', p),
   pickPath: () => ipcRenderer.invoke('dialog:pickPath'),
+  pickAudio: () => ipcRenderer.invoke('dialog:pickAudio'),
   getStats: () => ipcRenderer.invoke('sys:stats'),
   getStartup: () => ipcRenderer.invoke('startup:get'),
   setStartup: (on) => ipcRenderer.invoke('startup:set', on),

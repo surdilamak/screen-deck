@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; img-src 'self' data: https://*.giphy.com; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.giphy.com https://*.giphy.com;" />
+        content="default-src 'self'; img-src 'self' data: https://*.giphy.com; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' file: data: blob:; connect-src 'self' https://api.giphy.com https://*.giphy.com;" />
   <title>Screen Deck</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -43,6 +43,9 @@
           <option value="path">Open File/Folder</option>
           <option value="keys">Hotkey (keystroke)</option>
           <option value="type">Type Text</option>
+          <option value="media">Media control</option>
+          <option value="system">System (lock / sleep)</option>
+          <option value="sound">Play sound</option>
           <option value="shell">Run Shell Command</option>
           <option value="applescript">Run AppleScript (macOS)</option>
           <option value="page">Open Folder (page)</option>
@@ -51,7 +54,14 @@
 
       <button id="chooseAppBtn" class="btn-primary sm hidden choose-app"></button>
       <button id="browsePathBtn" class="btn-ghost sm hidden choose-app"></button>
-      <label id="valueLabel">Value<input id="f-value" type="text" placeholder="e.g. Finder" /></label>
+      <button id="chooseAudioBtn" class="btn-ghost sm hidden choose-app"></button>
+      <label id="choiceLabel" class="hidden">Control<select id="f-choice"></select></label>
+      <label id="valueLabel">Value
+        <span class="value-row">
+          <input id="f-value" type="text" placeholder="e.g. Finder" />
+          <button id="recordBtn" class="btn-ghost sm hidden">● Record</button>
+        </span>
+      </label>
       <label id="pageValueLabel" class="hidden">Target page
         <select id="f-page"></select>
       </label>
