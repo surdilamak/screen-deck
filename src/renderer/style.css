@@ -185,20 +185,107 @@ button { font-family: inherit; }
 .cell .icon img { object-fit: contain; pointer-events: none; display: block; }
 .cell .icon .glyph { display: inline-flex; color: rgba(255,255,255,0.95); }
 
-/* Volume fader cell: drag up/down to set volume */
-.cell.fader { touch-action: none; }
+/* ── Vintage 90s radio-handle fader ─────────────────────────── */
+.cell.fader {
+  touch-action: none;
+  background: #15152a !important;
+  cursor: ns-resize;
+}
+.cell.fader.fader-h { cursor: ew-resize; }
+
+/* Fill bar */
 .cell.fader .fader-fill {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 0;
-  background: linear-gradient(0deg, var(--accent), #6aa3ff);
-  transition: height 80ms linear;
+  background: linear-gradient(0deg, var(--accent) 0%, #5a6fff 70%, #4ab0ff 100%);
+  opacity: 0.28;
+  transition: height 60ms linear, width 60ms linear;
 }
-.cell.fader .fader-body {
-  position: absolute; inset: 0; z-index: 1;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-  color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.5); pointer-events: none;
+.cell.fader.fader-h .fader-fill {
+  top: 0; right: auto; bottom: 0; width: 0;
 }
-.cell.fader .fader-body svg { color: #fff; }
-.cell.fader .fader-val { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 20px; }
+
+/* Track groove */
+.cell.fader .fader-groove {
+  position: absolute; z-index: 1; border-radius: 3px;
+  background: #07071a;
+  box-shadow: inset 0 0 5px rgba(0,0,0,0.9);
+}
+.cell.fader:not(.fader-h) .fader-groove {
+  width: 7px; top: 14px; bottom: 14px;
+  left: 50%; transform: translateX(-50%);
+}
+.cell.fader.fader-h .fader-groove {
+  height: 7px; left: 14px; right: 14px;
+  top: 50%; transform: translateY(-50%);
+}
+
+/* Chunky 90s handle */
+.cell.fader .fader-handle {
+  position: absolute; z-index: 3; border-radius: 4px;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0.18) 0%, #3c3c5c 8%, #252540 45%,
+    #303050 55%, #1e1e36 92%, rgba(0,0,0,0.3) 100%);
+  border-top: 1.5px solid rgba(255,255,255,0.3);
+  border-bottom: 2px solid rgba(0,0,0,0.55);
+  border-left: 1px solid rgba(255,255,255,0.14);
+  border-right: 1px solid rgba(0,0,0,0.4);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.65), 0 1px 2px rgba(0,0,0,0.9),
+              inset 0 1px 0 rgba(255,255,255,0.08);
+  cursor: grab;
+}
+.cell.fader:not(.fader-h) .fader-handle {
+  width: 40px; height: 42px;
+  left: 50%; transform: translateX(-50%);
+}
+.cell.fader.fader-h .fader-handle {
+  width: 42px; height: 40px;
+  top: 50%; transform: translateY(-50%);
+}
+/* Knurl ridges */
+.cell.fader:not(.fader-h) .fader-handle::before {
+  content: ''; position: absolute; left: 7px; right: 7px; top: 10px; bottom: 10px;
+  background: repeating-linear-gradient(
+    180deg, transparent 0px, transparent 2px,
+    rgba(0,0,0,0.5) 2px, rgba(0,0,0,0.5) 3.5px);
+}
+.cell.fader.fader-h .fader-handle::before {
+  content: ''; position: absolute; top: 7px; bottom: 7px; left: 10px; right: 10px;
+  background: repeating-linear-gradient(
+    90deg, transparent 0px, transparent 2px,
+    rgba(0,0,0,0.5) 2px, rgba(0,0,0,0.5) 3.5px);
+}
+/* Center neon stripe */
+.cell.fader:not(.fader-h) .fader-handle::after {
+  content: ''; position: absolute;
+  left: 5px; right: 5px; height: 2px;
+  top: 50%; transform: translateY(-50%);
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent), 0 0 12px rgba(255,61,139,0.35);
+  border-radius: 1px;
+}
+.cell.fader.fader-h .fader-handle::after {
+  content: ''; position: absolute;
+  top: 5px; bottom: 5px; width: 2px;
+  left: 50%; transform: translateX(-50%);
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent), 0 0 12px rgba(255,61,139,0.35);
+  border-radius: 1px;
+}
+
+/* Volume value badge (top-right corner) */
+.cell.fader .fader-val {
+  position: absolute; top: 6px; right: 6px; z-index: 4;
+  font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.75); text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  background: rgba(0,0,0,0.45); padding: 2px 5px; border-radius: 3px;
+  pointer-events: none;
+}
+/* Volume icon (top-left corner) */
+.cell.fader .fader-icon {
+  position: absolute; top: 6px; left: 6px; z-index: 4;
+  color: rgba(255,255,255,0.4); pointer-events: none;
+  display: inline-flex;
+}
 .cell .label {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
   padding: 5px 8px 6px;

@@ -223,12 +223,17 @@ function applyButtonToCell(cell, btn, px) {
   cell.classList.toggle('folder', !!isFolder);
   cell.classList.remove('empty');
   cell.style.background = btn.transparent ? 'transparent' : (btn.color || '');
-  // Volume fader: a vertical slider cell (drag to set system volume).
+  // Volume fader: vintage 90s handle style, spans multiple cells.
   if (btn.action && btn.action.type === 'volume') {
     cell.classList.add('fader');
+    const isH = (btn.spanDir || 'v') === 'h';
+    if (isH) cell.classList.add('fader-h');
     const v = typeof lastVol === 'number' ? lastVol : 50;
-    let fh = `<div class="fader-fill" style="height:${v}%"></div>`
-      + `<div class="fader-body">${icon('volume2', Math.round(px * 0.26))}<span class="fader-val">${v}</span></div>`;
+    let fh = `<div class="fader-fill" style="${isH ? 'width' : 'height'}:${v}%"></div>`;
+    fh += `<div class="fader-groove"></div>`;
+    fh += `<div class="fader-handle"></div>`;
+    fh += `<span class="fader-icon">${icon('volume2', 14)}</span>`;
+    fh += `<span class="fader-val">${v}</span>`;
     if (btn.label) fh += `<div class="label">${escapeHtml(btn.label)}</div>`;
     fh += `<span class="badge-edit">${icon('pencil', 12)}</span>`;
     cell.innerHTML = fh;
@@ -258,9 +263,22 @@ function applyButtonToCell(cell, btn, px) {
 // ── Volume fader widget ──
 let lastVol = null;
 let faderTimer = null, faderPending = null;
-function setFaderFill(cell, v) {
-  const fill = cell.querySelector('.fader-fill'); if (fill) fill.style.height = v + '%';
-  const val = cell.querySelector('.fader-val'); if (val) val.textContent = v;
+const FADER_PAD = 14, FADER_HANDLE = 42;
+
+function setFaderPos(cell, v) {
+  const isH = cell.classList.contains('fader-h');
+  const fill = cell.querySelector('.fader-fill');
+  const handle = cell.querySelector('.fader-handle');
+  const val = cell.querySelector('.fader-val');
+  if (fill) { if (isH) fill.style.width = v + '%'; else fill.style.height = v + '%'; }
+  if (handle) {
+    const travel = (isH ? cell.clientWidth : cell.clientHeight) - 2 * FADER_PAD - FADER_HANDLE;
+    const pos = isH
+      ? (v / 100) * travel + FADER_PAD
+      : ((100 - v) / 100) * travel + FADER_PAD;
+    handle.style[isH ? 'left' : 'top'] = pos + 'px';
+  }
+  if (val) val.textContent = v;
 }
 function commitVolume(v) { // throttle IPC (loudness spawns a process per call)
   faderPending = v;
@@ -271,27 +289,30 @@ async function refreshVolume() {
   try {
     const a = await deck.getVolume();
     lastVol = a.volume;
-    document.querySelectorAll('#grid .cell.fader').forEach((c) => setFaderFill(c, a.volume));
+    document.querySelectorAll('#grid .cell.fader').forEach((c) => setFaderPos(c, a.volume));
   } catch { /* ignore */ }
 }
 function setupFaderCell(cell) {
-  const apply = (clientY) => {
+  const isH = cell.classList.contains('fader-h');
+  const apply = (clientX, clientY) => {
     const r = cell.getBoundingClientRect();
-    const v = Math.max(0, Math.min(100, Math.round((1 - (clientY - r.top) / r.height) * 100)));
-    lastVol = v; setFaderFill(cell, v); commitVolume(v);
+    const v = isH
+      ? Math.max(0, Math.min(100, Math.round((clientX - r.left) / r.width * 100)))
+      : Math.max(0, Math.min(100, Math.round((1 - (clientY - r.top) / r.height) * 100)));
+    lastVol = v; setFaderPos(cell, v); commitVolume(v);
   };
   cell.addEventListener('pointerdown', (e) => {
     if (editing) return;                 // edit mode → tap-to-edit / reposition
     e.preventDefault();
     try { cell.setPointerCapture(e.pointerId); } catch {}
-    apply(e.clientY);
-    const mv = (ev) => apply(ev.clientY);
+    apply(e.clientX, e.clientY);
+    const mv = (ev) => apply(ev.clientX, ev.clientY);
     const up = () => {
       cell.removeEventListener('pointermove', mv);
       cell.removeEventListener('pointerup', up);
       cell.removeEventListener('pointercancel', up);
       clearTimeout(faderTimer); faderTimer = null;
-      if (faderPending != null) deck.setVolume(faderPending); // ensure final value
+      if (faderPending != null) deck.setVolume(faderPending);
     };
     cell.addEventListener('pointermove', mv);
     cell.addEventListener('pointerup', up);
@@ -303,12 +324,49 @@ function renderGrid() {
   sizeGrid();
   grid.innerHTML = '';
   let hasFader = false;
+  const { cols } = config.grid;
+  const total = cellCount();
 
-  for (let i = 0; i < cellCount(); i++) {
+  // Which positions are consumed by a spanning cell (not the origin)
+  const occupied = new Set();
+  for (const btn of (page().buttons || [])) {
+    if (!btn || !btn.span || btn.span <= 1) continue;
+    const dir = btn.spanDir || 'v';
+    for (let s = 1; s < btn.span; s++) {
+      const skip = dir === 'h' ? btn.pos + s : btn.pos + s * cols;
+      if (skip >= total) break;
+      if (dir === 'h' && Math.floor(skip / cols) !== Math.floor(btn.pos / cols)) break;
+      occupied.add(skip);
+    }
+  }
+
+  for (let i = 0; i < total; i++) {
+    if (occupied.has(i)) continue; // covered by spanning neighbour
+
     const btn = buttonAt(i);
     const cell = document.createElement('div');
     cell.className = 'cell';
     cell.dataset.index = i;
+
+    // Explicit grid placement (1-indexed)
+    const gRow = Math.floor(i / cols) + 1;
+    const gCol = (i % cols) + 1;
+
+    if (btn && btn.span > 1) {
+      const dir = btn.spanDir || 'v';
+      let eff = 1;
+      for (let s = 1; s < btn.span; s++) {
+        const next = dir === 'h' ? btn.pos + s : btn.pos + s * cols;
+        if (next >= total) break;
+        if (dir === 'h' && Math.floor(next / cols) !== Math.floor(btn.pos / cols)) break;
+        eff++;
+      }
+      cell.style.gridColumn = dir === 'h' ? `${gCol} / span ${eff}` : String(gCol);
+      cell.style.gridRow    = dir === 'v' ? `${gRow} / span ${eff}` : String(gRow);
+    } else {
+      cell.style.gridColumn = String(gCol);
+      cell.style.gridRow    = String(gRow);
+    }
 
     if (btn) {
       applyButtonToCell(cell, btn, cellPx);
@@ -322,7 +380,7 @@ function renderGrid() {
     cell.addEventListener('click', () => onCellClick(i, btn));
     grid.appendChild(cell);
   }
-  if (hasFader) refreshVolume();
+  if (hasFader) requestAnimationFrame(() => refreshVolume());
 }
 
 // ── Drag-and-drop reposition (edit mode only) ──
@@ -622,6 +680,8 @@ function openEditor(index, btn) {
   $('sizeVal').textContent = scale + '%';
   $('f-transparent').checked = !!btn?.transparent;
   $('f-url-reuse').checked = !!btn?.action?.reuse;
+  $('f-span').value = btn?.span ?? 1;
+  $('f-spanDir').value = btn?.spanDir ?? 'v';
   $('f-fit').value = btn?.imageFit === 'cover' ? 'cover' : 'contain';
   $('f-pos').value = btn?.imagePosition || 'center';
   syncFitUI();
@@ -646,7 +706,7 @@ function formButton() {
   else value = $('f-value').value.trim();
   const action = { type, value };
   if (type === 'url') action.reuse = $('f-url-reuse').checked;
-  return {
+  const result = {
     label: $('f-label').value.trim(),
     icon: $('f-icon').value.trim(),
     image: pendingImage === undefined ? (existing?.image || '') : pendingImage,
@@ -657,6 +717,12 @@ function formButton() {
     imagePosition: $('f-pos').value,
     action,
   };
+  if (type === 'volume') {
+    const sp = parseInt($('f-span').value, 10);
+    result.span = sp;
+    if (sp > 1) result.spanDir = $('f-spanDir').value;
+  }
+  return result;
 }
 
 // Show the position selector only when fit = Fill (cover).
@@ -681,6 +747,7 @@ function syncTypeUI() {
   $('chooseAudioBtn').classList.toggle('hidden', t !== 'sound');
   $('recordBtn').classList.toggle('hidden', t !== 'keys');
   $('urlReuseLabel').classList.toggle('hidden', t !== 'url');
+  $('faderSpanRow').classList.toggle('hidden', t !== 'volume');
   if (isChoice) populateChoice(t, $('f-choice').value);
   $('f-value').placeholder = VALUE_PLACEHOLDER[t] || '';
   $('hint').textContent = HINTS[t] || '';
