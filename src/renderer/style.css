@@ -307,6 +307,12 @@ button { font-family: inherit; }
 }
 .cell.empty:hover { filter: none; box-shadow: none; border-color: var(--ink-faint); }
 .cell.empty .icon svg { width: 26px; height: 26px; opacity: 0.4; }
+/* Kiosk mode: empty cells are invisible and non-interactive */
+body:not(.editing) .cell.empty {
+  border-color: transparent !important;
+  pointer-events: none;
+}
+body:not(.editing) .cell.empty .icon { visibility: hidden; }
 
 /* Edit-mode affordance */
 body.editing .cell:not(.empty) { outline: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); }

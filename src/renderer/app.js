@@ -50,6 +50,8 @@ const ICON_PATHS = {
   terminal: '<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
   globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
   text: '<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/>',
+  arrowLeft: '<path d="m15 18-6-6 6-6"/>',
+  arrowRight: '<path d="m9 18 6-6-6-6"/>',
 };
 
 // Built-in icon for an action when the user hasn't set a custom icon/image.
@@ -133,14 +135,30 @@ function renderPageStrip() {
     const tab = document.createElement('button');
     tab.className = 'page-tab' + (i === pageIndex ? ' active' : '');
     tab.innerHTML = `<span>${escapeHtml(p.name)}</span>`;
-    if (editing && i === pageIndex) {
-      const ren = document.createElement('span'); ren.className = 'mini'; ren.innerHTML = icon('pencil', 12);
-      ren.title = 'Rename'; ren.onclick = (e) => { e.stopPropagation(); renamePage(i); };
-      tab.appendChild(ren);
-      if (config.pages.length > 1) {
-        const del = document.createElement('span'); del.className = 'mini'; del.innerHTML = icon('trash', 12);
-        del.title = 'Delete page'; del.onclick = (e) => { e.stopPropagation(); deletePage(i); };
-        tab.appendChild(del);
+    if (editing) {
+      // ← move left
+      if (i > 0) {
+        const ml = document.createElement('span'); ml.className = 'mini';
+        ml.innerHTML = icon('arrowLeft', 12); ml.title = 'Move left';
+        ml.onclick = (e) => { e.stopPropagation(); movePage(i, -1); };
+        tab.insertBefore(ml, tab.firstChild);
+      }
+      if (i === pageIndex) {
+        const ren = document.createElement('span'); ren.className = 'mini'; ren.innerHTML = icon('pencil', 12);
+        ren.title = 'Rename'; ren.onclick = (e) => { e.stopPropagation(); renamePage(i); };
+        tab.appendChild(ren);
+        if (config.pages.length > 1) {
+          const del = document.createElement('span'); del.className = 'mini'; del.innerHTML = icon('trash', 12);
+          del.title = 'Delete page'; del.onclick = (e) => { e.stopPropagation(); deletePage(i); };
+          tab.appendChild(del);
+        }
+      }
+      // → move right
+      if (i < config.pages.length - 1) {
+        const mr = document.createElement('span'); mr.className = 'mini';
+        mr.innerHTML = icon('arrowRight', 12); mr.title = 'Move right';
+        mr.onclick = (e) => { e.stopPropagation(); movePage(i, 1); };
+        tab.appendChild(mr);
       }
     }
     tab.onclick = () => { pageIndex = i; render(); };
@@ -191,6 +209,15 @@ async function deletePage(i) {
   if (!confirm(`Delete page "${config.pages[i].name}" and its buttons?`)) return;
   config.pages.splice(i, 1);
   pageIndex = Math.max(0, Math.min(pageIndex, config.pages.length - 1));
+  await persist();
+  render();
+}
+
+async function movePage(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= config.pages.length) return;
+  [config.pages[i], config.pages[j]] = [config.pages[j], config.pages[i]];
+  pageIndex = j; // follow the page we just moved
   await persist();
   render();
 }
@@ -480,7 +507,7 @@ async function onCellClick(index, btn) {
   if (swiped) { swiped = false; return; }       // ignore tap that ends a swipe
   if (dragMoved) { dragMoved = false; return; } // ignore tap that ends a drag
   if (editing) return openEditor(index, btn);
-  if (!btn) return openEditor(index, null);
+  if (!btn) return; // empty cells are invisible + non-interactive in kiosk mode
 
   if (btn.action && btn.action.type === 'page') {
     const idx = pageById(btn.action.value);
