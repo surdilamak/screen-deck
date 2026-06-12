@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('deck', {
   pickPath: () => ipcRenderer.invoke('dialog:pickPath'),
   pickAudio: () => ipcRenderer.invoke('dialog:pickAudio'),
   getStats: () => ipcRenderer.invoke('sys:stats'),
+  getVolume: () => ipcRenderer.invoke('audio:get'),
+  setVolume: (v) => ipcRenderer.invoke('audio:set', v),
   getStartup: () => ipcRenderer.invoke('startup:get'),
   setStartup: (on) => ipcRenderer.invoke('startup:set', on),
   onFullscreen: (cb) => ipcRenderer.on('deck:fullscreen', (_e, on) => cb(!!on)),

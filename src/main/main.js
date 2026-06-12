@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const si = require('systeminformation');
+const loudness = require('loudness');
 const { autoUpdater } = require('electron-updater');
 const config = require('./config');
 const actions = require('./actions');
@@ -445,6 +446,14 @@ ipcMain.handle('dialog:pickAudio', async () => {
     filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'] }],
   });
   return res.canceled || !res.filePaths.length ? '' : res.filePaths[0];
+});
+
+ipcMain.handle('audio:get', async () => {
+  try { return { volume: await loudness.getVolume(), muted: await loudness.getMuted() }; }
+  catch { return { volume: 50, muted: false }; }
+});
+ipcMain.handle('audio:set', async (_e, v) => {
+  try { await loudness.setVolume(Math.max(0, Math.min(100, Math.round(v)))); } catch { /* ignore */ }
 });
 
 ipcMain.handle('app:version', () => app.getVersion());

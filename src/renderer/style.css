@@ -184,6 +184,21 @@ button { font-family: inherit; }
 }
 .cell .icon img { object-fit: contain; pointer-events: none; display: block; }
 .cell .icon .glyph { display: inline-flex; color: rgba(255,255,255,0.95); }
+
+/* Volume fader cell: drag up/down to set volume */
+.cell.fader { touch-action: none; }
+.cell.fader .fader-fill {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 0;
+  background: linear-gradient(0deg, var(--accent), #6aa3ff);
+  transition: height 80ms linear;
+}
+.cell.fader .fader-body {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.5); pointer-events: none;
+}
+.cell.fader .fader-body svg { color: #fff; }
+.cell.fader .fader-val { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 20px; }
 .cell .label {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
   padding: 5px 8px 6px;

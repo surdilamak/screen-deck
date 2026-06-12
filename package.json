@@ -1,6 +1,6 @@
 {
   "name": "screen-deck",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "A customizable touchscreen macro pad (Stream Deck style) for a portable touch monitor",
   "main": "src/main/main.js",
   "author": "surdilamak",
@@ -19,6 +19,7 @@
   "dependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",
     "electron-updater": "^6.8.9",
+    "loudness": "^0.4.2",
     "systeminformation": "^5.31.7"
   },
   "build": {
@@ -26,7 +27,12 @@
     "productName": "Screen Deck",
     "artifactName": "ScreenDeck-Setup-${version}.${ext}",
     "publish": [
-      { "provider": "github", "owner": "surdilamak", "repo": "screen-deck", "releaseType": "release" }
+      {
+        "provider": "github",
+        "owner": "surdilamak",
+        "repo": "screen-deck",
+        "releaseType": "release"
+      }
     ],
     "directories": {
       "output": "dist",
@@ -38,7 +44,8 @@
     ],
     "asarUnpack": [
       "**/*.node",
-      "node_modules/@nut-tree-fork/**"
+      "node_modules/@nut-tree-fork/**",
+      "node_modules/loudness/**"
     ],
     "win": {
       "target": [

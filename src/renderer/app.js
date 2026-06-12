@@ -56,6 +56,7 @@ const ICON_PATHS = {
 function defaultActionIcon(a) {
   if (!a) return null;
   if (a.type === 'media') return { playpause: 'play', next: 'skipForward', prev: 'skipBack', stop: 'square', mute: 'volumeX', volup: 'volume2', voldown: 'volume1' }[a.value] || 'play';
+  if (a.type === 'volume') return 'volume2';
   if (a.type === 'system') return a.value === 'sleep' ? 'moon' : 'lock';
   if (a.type === 'sound') return 'music';
   if (a.type === 'stopsound') return 'square';
@@ -222,6 +223,18 @@ function applyButtonToCell(cell, btn, px) {
   cell.classList.toggle('folder', !!isFolder);
   cell.classList.remove('empty');
   cell.style.background = btn.transparent ? 'transparent' : (btn.color || '');
+  // Volume fader: a vertical slider cell (drag to set system volume).
+  if (btn.action && btn.action.type === 'volume') {
+    cell.classList.add('fader');
+    const v = typeof lastVol === 'number' ? lastVol : 50;
+    let fh = `<div class="fader-fill" style="height:${v}%"></div>`
+      + `<div class="fader-body">${icon('volume2', Math.round(px * 0.26))}<span class="fader-val">${v}</span></div>`;
+    if (btn.label) fh += `<div class="label">${escapeHtml(btn.label)}</div>`;
+    fh += `<span class="badge-edit">${icon('pencil', 12)}</span>`;
+    cell.innerHTML = fh;
+    return;
+  }
+
   const iconPx = Math.round(px * scale);
   let html = '<div class="icon">';
   if (btn.image) {
@@ -242,9 +255,54 @@ function applyButtonToCell(cell, btn, px) {
   cell.innerHTML = html;
 }
 
+// ── Volume fader widget ──
+let lastVol = null;
+let faderTimer = null, faderPending = null;
+function setFaderFill(cell, v) {
+  const fill = cell.querySelector('.fader-fill'); if (fill) fill.style.height = v + '%';
+  const val = cell.querySelector('.fader-val'); if (val) val.textContent = v;
+}
+function commitVolume(v) { // throttle IPC (loudness spawns a process per call)
+  faderPending = v;
+  if (faderTimer) return;
+  faderTimer = setTimeout(() => { deck.setVolume(faderPending); faderTimer = null; }, 110);
+}
+async function refreshVolume() {
+  try {
+    const a = await deck.getVolume();
+    lastVol = a.volume;
+    document.querySelectorAll('#grid .cell.fader').forEach((c) => setFaderFill(c, a.volume));
+  } catch { /* ignore */ }
+}
+function setupFaderCell(cell) {
+  const apply = (clientY) => {
+    const r = cell.getBoundingClientRect();
+    const v = Math.max(0, Math.min(100, Math.round((1 - (clientY - r.top) / r.height) * 100)));
+    lastVol = v; setFaderFill(cell, v); commitVolume(v);
+  };
+  cell.addEventListener('pointerdown', (e) => {
+    if (editing) return;                 // edit mode → tap-to-edit / reposition
+    e.preventDefault();
+    try { cell.setPointerCapture(e.pointerId); } catch {}
+    apply(e.clientY);
+    const mv = (ev) => apply(ev.clientY);
+    const up = () => {
+      cell.removeEventListener('pointermove', mv);
+      cell.removeEventListener('pointerup', up);
+      cell.removeEventListener('pointercancel', up);
+      clearTimeout(faderTimer); faderTimer = null;
+      if (faderPending != null) deck.setVolume(faderPending); // ensure final value
+    };
+    cell.addEventListener('pointermove', mv);
+    cell.addEventListener('pointerup', up);
+    cell.addEventListener('pointercancel', up);
+  });
+}
+
 function renderGrid() {
   sizeGrid();
   grid.innerHTML = '';
+  let hasFader = false;
 
   for (let i = 0; i < cellCount(); i++) {
     const btn = buttonAt(i);
@@ -255,6 +313,7 @@ function renderGrid() {
     if (btn) {
       applyButtonToCell(cell, btn, cellPx);
       setupCellDrag(cell, i);
+      if (btn.action && btn.action.type === 'volume') { setupFaderCell(cell); hasFader = true; }
     } else {
       cell.classList.add('empty');
       cell.innerHTML = `<div class="icon">${icon('plus', 26)}</div>`;
@@ -263,6 +322,7 @@ function renderGrid() {
     cell.addEventListener('click', () => onCellClick(i, btn));
     grid.appendChild(cell);
   }
+  if (hasFader) refreshVolume();
 }
 
 // ── Drag-and-drop reposition (edit mode only) ──
@@ -370,6 +430,8 @@ async function onCellClick(index, btn) {
     else setStatus('Folder target not set', 'err');
     return;
   }
+
+  if (btn.action && btn.action.type === 'volume') return; // fader handles its own drag
 
   if (btn.action && btn.action.type === 'sound') { // played in the renderer
     const r = playSound(btn.action.value);
@@ -533,6 +595,7 @@ const HINTS = {
   keys: 'Hotkey combo, e.g. cmd+c · ctrl+shift+t · alt+tab — or click Record',
   type: 'Text to type out automatically',
   media: 'Media key (works with most players).',
+  volume: 'A slider — drag up/down on the button to set system volume.',
   system: 'System action.',
   sound: 'Pick an audio file. Press the button again to stop it.',
   stopsound: 'Stops every sound currently playing.',
@@ -609,7 +672,7 @@ function syncTypeUI() {
   const t = $('f-type').value;
   const isPage = t === 'page';
   const isChoice = t === 'media' || t === 'system';
-  const noValue = isPage || isChoice || t === 'stopsound';
+  const noValue = isPage || isChoice || t === 'stopsound' || t === 'volume';
   $('valueLabel').classList.toggle('hidden', noValue);
   $('pageValueLabel').classList.toggle('hidden', !isPage);
   $('choiceLabel').classList.toggle('hidden', !isChoice);
