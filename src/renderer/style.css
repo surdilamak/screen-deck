@@ -545,11 +545,28 @@ body.editing #btnPreview { outline: none; }
 .seq-step-row .seq-del { flex: 0 0 auto; }
 
 /* ── Toggle state row ── */
-.toggle-state-row { border: 1px solid var(--hairline); border-radius: var(--r-md); padding: 8px 10px; margin-bottom: 8px; }
-.toggle-state-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
-.toggle-state-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
-.toggle-state-fields label { font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
-.toggle-state-fields input, .toggle-state-fields select { font-size: 12px; }
+.toggle-state-row {
+  border: 1px solid var(--hairline); border-radius: var(--r-md);
+  padding: 8px 10px; margin-bottom: 8px; overflow: hidden;
+}
+.toggle-state-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px; font-size: 12px; font-weight: 600; color: var(--ink-soft);
+}
+/* Row 1: label + icon + color (small fixed widths) */
+.toggle-state-row1 {
+  display: flex; gap: 6px; align-items: flex-end; margin-bottom: 6px;
+}
+.toggle-state-row1 .ts-lbl { flex: 1 1 0; min-width: 0; }
+.toggle-state-row1 .ts-ico { flex: 0 0 52px; }
+.toggle-state-row1 .ts-col { flex: 0 0 36px; }
+/* Row 2: action type + value */
+.toggle-state-row2 { display: flex; gap: 6px; align-items: flex-end; }
+.toggle-state-row2 .ts-atype-wrap { flex: 0 0 110px; }
+.toggle-state-row2 .ts-aval-wrap { flex: 1 1 0; min-width: 0; }
+
+.toggle-state-row label { font-size: 11px; color: var(--ink-soft); display: flex; flex-direction: column; gap: 2px; }
+.toggle-state-row input, .toggle-state-row select { font-size: 12px; width: 100%; }
 
 /* State indicator badge */
 .badge-state {

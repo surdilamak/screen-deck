@@ -791,12 +791,14 @@ function renderToggleStates() {
         <strong>State ${i+1}</strong>
         ${toggleStateList.length > 2 ? '<button class="btn-danger sm ts-del">×</button>' : ''}
       </div>
-      <div class="toggle-state-fields">
-        <label>Label<input class="ts-label" type="text" value="${escapeHtml(st.label||'')}" /></label>
-        <label>Icon<input class="ts-icon" type="text" maxlength="4" value="${escapeHtml(st.icon||'')}" /></label>
-        <label>Color<input class="ts-color" type="color" value="${st.color||'#2563eb'}" /></label>
-        <label>Action<select class="ts-atype">${typeOpts}</select></label>
-        <label>Value<input class="ts-aval" type="text" value="${escapeHtml(st.action?.value||'')}" /></label>
+      <div class="toggle-state-row1">
+        <label class="ts-lbl">Label<input class="ts-label" type="text" value="${escapeHtml(st.label||'')}" /></label>
+        <label class="ts-ico">Icon<input class="ts-icon" type="text" maxlength="4" value="${escapeHtml(st.icon||'')}" /></label>
+        <label class="ts-col">Color<input class="ts-color" type="color" value="${st.color||'#2563eb'}" /></label>
+      </div>
+      <div class="toggle-state-row2">
+        <label class="ts-atype-wrap">Action<select class="ts-atype">${typeOpts}</select></label>
+        <label class="ts-aval-wrap">Value<input class="ts-aval" type="text" value="${escapeHtml(st.action?.value||'')}" /></label>
       </div>`;
     row.querySelector('.ts-label').oninput = (e) => { toggleStateList[i].label = e.target.value; };
     row.querySelector('.ts-icon').oninput = (e) => { toggleStateList[i].icon = e.target.value; };
