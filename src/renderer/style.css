@@ -190,6 +190,7 @@ button { font-family: inherit; }
   touch-action: none;
   background: #15152a !important;
   cursor: ns-resize;
+  aspect-ratio: unset;   /* override 1/1 so the cell fills its spanning grid area */
 }
 .cell.fader.fader-h { cursor: ew-resize; }
 
