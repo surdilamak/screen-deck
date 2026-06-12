@@ -6,3 +6,6 @@ out/
 
 # Local agent tooling (third-party skill — not app code)
 .claude/
+
+# npm lockfile — regenerated per-platform, caused cross-machine pull conflicts
+package-lock.json
