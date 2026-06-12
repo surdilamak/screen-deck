@@ -37,7 +37,35 @@ const ICON_PATHS = {
   wifi: '<path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.86a10 10 0 0 1 14 0"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/>',
   drive: '<line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/>',
   music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  play: '<polygon points="6 3 20 12 6 21 6 3"/>',
+  skipForward: '<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/>',
+  skipBack: '<polygon points="19 20 9 12 19 4 19 20"/><line x1="5" x2="5" y1="19" y2="5"/>',
+  square: '<rect width="16" height="16" x="4" y="4" rx="2"/>',
+  volumeX: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/>',
+  volume2: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>',
+  volume1: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>',
+  lock: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  keyboard: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/>',
+  terminal: '<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+  text: '<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/>',
 };
+
+// Built-in icon for an action when the user hasn't set a custom icon/image.
+function defaultActionIcon(a) {
+  if (!a) return null;
+  if (a.type === 'media') return { playpause: 'play', next: 'skipForward', prev: 'skipBack', stop: 'square', mute: 'volumeX', volup: 'volume2', voldown: 'volume1' }[a.value] || 'play';
+  if (a.type === 'system') return a.value === 'sleep' ? 'moon' : 'lock';
+  if (a.type === 'sound') return 'music';
+  if (a.type === 'stopsound') return 'square';
+  if (a.type === 'keys') return 'keyboard';
+  if (a.type === 'type') return 'text';
+  if (a.type === 'shell' || a.type === 'applescript') return 'terminal';
+  if (a.type === 'url') return 'globe';
+  if (a.type === 'page') return 'folder';
+  return null;
+}
 
 // Choices for the media / system action types (shown as a dropdown).
 const CHOICES = {
@@ -200,8 +228,12 @@ function applyButtonToCell(cell, btn, px) {
     const fit = btn.imageFit === 'cover' ? 'cover' : 'contain';
     const pos = btn.imagePosition || 'center';
     html += `<img src="${btn.image}" alt="" style="width:${iconPx}px;height:${iconPx}px;object-fit:${fit};object-position:${pos}">`;
+  } else if (btn.icon) {
+    html += `<span class="emoji" style="font-size:${Math.round(iconPx * 0.64)}px">${escapeHtml(btn.icon)}</span>`;
   } else {
-    html += `<span class="emoji" style="font-size:${Math.round(iconPx * 0.64)}px">${escapeHtml(btn.icon || '▢')}</span>`;
+    const dn = defaultActionIcon(btn.action);
+    if (dn) html += `<span class="glyph">${icon(dn, Math.round(iconPx * 0.55))}</span>`;
+    else html += `<span class="emoji" style="font-size:${Math.round(iconPx * 0.64)}px">▢</span>`;
   }
   html += '</div>';
   if (btn.label) html += `<div class="label">${escapeHtml(btn.label)}</div>`;
@@ -340,8 +372,14 @@ async function onCellClick(index, btn) {
   }
 
   if (btn.action && btn.action.type === 'sound') { // played in the renderer
-    playSound(btn.action.value);
-    setStatus(btn.label || 'Sound', 'ok');
+    const r = playSound(btn.action.value);
+    setStatus((r === 'stopped' ? 'Stopped ' : '') + (btn.label || 'Sound'), 'ok');
+    setTimeout(() => setStatus('Screen Deck'), 1500);
+    return;
+  }
+  if (btn.action && btn.action.type === 'stopsound') {
+    stopAllSounds();
+    setStatus('Sounds stopped', 'ok');
     setTimeout(() => setStatus('Screen Deck'), 1500);
     return;
   }
@@ -496,7 +534,8 @@ const HINTS = {
   type: 'Text to type out automatically',
   media: 'Media key (works with most players).',
   system: 'System action.',
-  sound: 'Pick an audio file to play on press (mp3/wav/ogg…).',
+  sound: 'Pick an audio file. Press the button again to stop it.',
+  stopsound: 'Stops every sound currently playing.',
   shell: 'Shell command, e.g. open -a Calculator',
   applescript: 'AppleScript, e.g. display notification "Hi"',
   page: 'Pick which page this folder button opens.',
@@ -570,7 +609,8 @@ function syncTypeUI() {
   const t = $('f-type').value;
   const isPage = t === 'page';
   const isChoice = t === 'media' || t === 'system';
-  $('valueLabel').classList.toggle('hidden', isPage || isChoice);
+  const noValue = isPage || isChoice || t === 'stopsound';
+  $('valueLabel').classList.toggle('hidden', noValue);
   $('pageValueLabel').classList.toggle('hidden', !isPage);
   $('choiceLabel').classList.toggle('hidden', !isChoice);
   $('chooseAppBtn').classList.toggle('hidden', t !== 'app');
@@ -759,11 +799,24 @@ function stopRecord() {
   $('recordBtn').textContent = '● Record';
 }
 
-// Play a local audio file (soundboard) in the renderer.
+// Soundboard playback. Pressing a playing sound again STOPS it (toggle).
+const playingSounds = new Map(); // path -> Audio
 function playSound(p) {
   if (!p) return;
+  const existing = playingSounds.get(p);
+  if (existing) { existing.pause(); existing.currentTime = 0; playingSounds.delete(p); return 'stopped'; }
   const url = 'file:///' + p.replace(/\\/g, '/').replace(/^\/+/, '');
-  try { new Audio(url).play().catch(() => {}); } catch { /* ignore */ }
+  try {
+    const a = new Audio(url);
+    a.addEventListener('ended', () => playingSounds.delete(p));
+    a.play().catch(() => playingSounds.delete(p));
+    playingSounds.set(p, a);
+  } catch { /* ignore */ }
+  return 'playing';
+}
+function stopAllSounds() {
+  for (const a of playingSounds.values()) { a.pause(); a.currentTime = 0; }
+  playingSounds.clear();
 }
 
 // ── GIF picker (GIPHY) ──
