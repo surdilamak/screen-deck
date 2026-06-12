@@ -250,6 +250,7 @@ function createWindow() {
     fullscreen: false,
     resizable: true,
     backgroundColor: '#0c0d10',
+    icon: path.join(__dirname, '../../build/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -484,6 +485,7 @@ app.on('before-quit', () => { isQuitting = true; });
 
 app.whenReady().then(() => {
   createWindow();
+  if (process.platform === 'darwin') app.dock.setIcon(path.join(__dirname, '../../build/icon.png'));
   createTray();
   initAutoUpdate();
   app.on('activate', () => {
