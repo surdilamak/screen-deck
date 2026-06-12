@@ -1162,6 +1162,7 @@ function bind() {
   let sx = 0, sy = 0, dragging = false, hMove = false;
   content.addEventListener('pointerdown', (e) => {
     if (animating || editing) return;     // don't carousel while editing
+    if (e.target.closest('.cell.fader.fader-h')) return; // let horizontal fader own the drag
     sx = e.clientX; sy = e.clientY; dragging = true; hMove = false; swiped = false;
     // NOTE: do NOT capture the pointer here — that would steal the `click` from
     // the buttons (broke mouse clicks). Capture only once a real drag starts.
