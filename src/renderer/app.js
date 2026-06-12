@@ -849,13 +849,17 @@ function bind() {
   content.addEventListener('pointerdown', (e) => {
     if (animating || editing) return;     // don't carousel while editing
     sx = e.clientX; sy = e.clientY; dragging = true; hMove = false; swiped = false;
-    try { content.setPointerCapture(e.pointerId); } catch {}
+    // NOTE: do NOT capture the pointer here — that would steal the `click` from
+    // the buttons (broke mouse clicks). Capture only once a real drag starts.
   });
   content.addEventListener('pointermove', (e) => {
     if (!dragging) return;
     let dx = e.clientX - sx;
     const dy = e.clientY - sy;
-    if (!hMove && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) hMove = true;
+    if (!hMove && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+      hMove = true;
+      try { content.setPointerCapture(e.pointerId); } catch {}
+    }
     if (!hMove) return;
     swiped = true;                         // a real drag → suppress the tap
     const n = config.pages.length;

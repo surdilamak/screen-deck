@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, screen, nativeImage, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, nativeImage, dialog, shell, Tray, Menu } = require('electron');
+const trayIconUrl = require('./tray-icon');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -25,6 +26,29 @@ let cpuName = '';
 si.cpu().then((c) => { cpuName = `${c.manufacturer || ''} ${c.brand || ''}`.trim(); }).catch(() => {});
 
 let win = null;
+let tray = null;
+let isQuitting = false;
+
+function showWindow() {
+  if (!win) { createWindow(); return; }
+  win.show();
+  win.focus();
+}
+
+// System tray: closing the window hides it here (tidy); reopen from the tray.
+function createTray() {
+  if (tray) return;
+  let img = nativeImage.createFromDataURL(trayIconUrl);
+  if (process.platform === 'win32') img = img.resize({ width: 16, height: 16 });
+  tray = new Tray(img);
+  tray.setToolTip('Screen Deck');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Show / Edit', click: showWindow },
+    { type: 'separator' },
+    { label: 'Quit', click: () => { isQuitting = true; app.quit(); } },
+  ]));
+  tray.on('click', showWindow);
+}
 
 // Discover installed Steam games (Windows): parse libraryfolders.vdf + each
 // appmanifest_*.acf. Returns { name, path: steam://rungameid/<id>, iconPath }.
@@ -237,6 +261,11 @@ function createWindow() {
     win.loadFile(path.join(__dirname, '../renderer/index.html'));
   });
 
+  // Close → hide to system tray instead of quitting (reopen from tray).
+  win.on('close', (e) => {
+    if (!isQuitting) { e.preventDefault(); win.hide(); }
+  });
+
   // Optionally launch straight into fullscreen (kiosk) display mode.
   if (cfg.startFullscreen) {
     win.webContents.once('did-finish-load', () => setDeckFullscreen(true));
@@ -410,16 +439,20 @@ ipcMain.handle('sys:stats', async () => {
   };
 });
 
-ipcMain.handle('app:quit', () => app.quit());
+ipcMain.handle('app:quit', () => { isQuitting = true; app.quit(); });
+
+app.on('before-quit', () => { isQuitting = true; });
 
 app.whenReady().then(() => {
   createWindow();
+  createTray();
   initAutoUpdate();
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(); else showWindow();
   });
 });
 
+// Don't quit when the window is just hidden to the tray — only on real quit.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin' && isQuitting) app.quit();
 });
