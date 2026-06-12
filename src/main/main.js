@@ -439,6 +439,7 @@ ipcMain.handle('sys:stats', async () => {
   };
 });
 
+ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('app:quit', () => { isQuitting = true; app.quit(); });
 
 app.on('before-quit', () => { isQuitting = true; });

@@ -1,6 +1,6 @@
 {
   "name": "screen-deck",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A customizable touchscreen macro pad (Stream Deck style) for a portable touch monitor",
   "main": "src/main/main.js",
   "author": "surdilamak",
@@ -24,6 +24,7 @@
   "build": {
     "appId": "com.surdilamak.screendeck",
     "productName": "Screen Deck",
+    "artifactName": "ScreenDeck-Setup-${version}.${ext}",
     "publish": [
       { "provider": "github", "owner": "surdilamak", "repo": "screen-deck", "releaseType": "release" }
     ],

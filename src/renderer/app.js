@@ -789,6 +789,7 @@ async function openSettings() {
   $('s-giphy').value = config.giphyKey || '';
   $('s-startfs').checked = !!config.startFullscreen;
   $('s-startup').checked = await deck.getStartup();
+  $('appVersion').textContent = 'Screen Deck v' + await deck.getVersion();
   $('settingsOverlay').classList.remove('hidden');
 }
 
